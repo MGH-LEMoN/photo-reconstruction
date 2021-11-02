@@ -5,7 +5,7 @@ import cv2
 import scipy.io
 import scipy.ndimage
 import torch
-import photo_recon.versatile_reg_network as PRnets
+import photo_reconstruction.versatile_reg_network as PRnets
 import os
 import ext.my_functions as my
 import argparse
