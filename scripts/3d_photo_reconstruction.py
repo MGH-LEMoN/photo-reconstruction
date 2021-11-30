@@ -129,7 +129,7 @@ output_photo_recon = output_directory + 'photo_recon.mgz'
 if ref_type == 'surface':
     output_registered_reference = output_directory + 'registered_reference.surf'
 else:
-    output_registered_reference = output_directory + 'registered_reference.mgz'
+    output_registered_reference = None
 
 if os.path.isdir(output_directory) is False:
     os.mkdir(output_directory)
@@ -685,8 +685,9 @@ for mode_idx in range(n_modes):
 
 print('Writing results to disk')
 
-my.MRIwrite(photo_resampled, photo_aff, output_photo_recon)
 if ref_type=='surface':
+
+    my.MRIwrite(photo_resampled, photo_aff, output_photo_recon)
 
     Pfull_rotated = np.matmul(np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1), Rt.transpose())[:, :-1]
     nib.freesurfer.write_geometry(output_registered_reference, Pfull_rotated, Tfull, volume_info=meta_full)
@@ -700,8 +701,11 @@ if ref_type=='surface':
     print('freeview -v %s -v %s -f %s -f %s' % (output_photo_recon, reg_mask, output_registered_reference[:-4] + 'decimated.surf', output_registered_reference))
 
 else:
-    my.MRIwrite(REF_orig, mri_aff_combined, output_registered_reference)
-    print('freeview %s %s' % (output_photo_recon, output_registered_reference))
+    # Go back to original RAS space of reference before writing photo volume
+    T = np.matmul(mri_aff_combined, np.linalg.inv(REFaff_orig))
+    Tinv = np.linalg.inv(T)
+    my.MRIwrite(photo_resampled, np.matmul(Tinv, photo_aff), output_photo_recon)
+    print('freeview %s %s' % (output_photo_recon, input_reference))
 
 
 print('All done!')
