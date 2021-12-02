@@ -12,8 +12,6 @@ import argparse
 import trimesh
 import nibabel as nib
 
-
-
 ########################################################
 # Parse arguments
 parser = argparse.ArgumentParser(description='Code for 3D photo reconstruction (Tregidgo, ..., & Iglesias, MICCAI 2020')
@@ -701,11 +699,18 @@ if ref_type=='surface':
     print('freeview -v %s -v %s -f %s -f %s' % (output_photo_recon, reg_mask, output_registered_reference[:-4] + 'decimated.surf', output_registered_reference))
 
 else:
-    # Go back to original RAS space of reference before writing photo volume
-    T = np.matmul(mri_aff_combined, np.linalg.inv(REFaff_orig))
-    Tinv = np.linalg.inv(T)
-    my.MRIwrite(photo_resampled, np.matmul(Tinv, photo_aff), output_photo_recon)
-    print('freeview %s %s' % (output_photo_recon, input_reference))
+    # Unless reference is soft, go back to original RAS space of reference before writing photo volume
+    if ref_type == 'soft_mask':
+        my.MRIwrite(photo_resampled, photo_aff, output_photo_recon)
+        reg_mask = output_directory + 'registered_reference.mgz'
+        my.MRIwrite(REF_orig, mri_aff_combined, reg_mask)
+        print('freeview %s %s' % (output_photo_recon, reg_mask))
+
+    else:
+        T = np.matmul(mri_aff_combined, np.linalg.inv(REFaff_orig))
+        Tinv = np.linalg.inv(T)
+        my.MRIwrite(photo_resampled, np.matmul(Tinv, photo_aff), output_photo_recon)
+        print('freeview %s %s' % (output_photo_recon, input_reference))
 
 
 print('All done!')
