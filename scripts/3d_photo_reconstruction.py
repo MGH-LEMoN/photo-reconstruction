@@ -219,7 +219,7 @@ stiffness_nonlin = options.stiffness_nonlin
 if options.skip_flag:
     slice_thickness = slice_thickness * options.multiply_factor
     subject_id = os.path.basename(os.path.dirname(options.input_photo_dir[0]))
-    ref_seg = f"/cluster/vive/UW_photo_recon/FLAIR_Scan_Data/NP{subject_id}.rotated.binary.mgz"
+    ref_seg = f"/cluster/vive/UW_photo_recon/Photo_data/{subject_id}/ref_image/manual_labels_merged.elastix.mgz"
 
     if os.path.exists(ref_seg):
         x = load_volume(ref_seg)
