@@ -14,7 +14,6 @@ import trimesh
 
 import ext.my_functions as my
 import photo_reconstruction.versatile_reg_network as PRnets
-from ext.utils import load_volume
 
 ########################################################
 # Parse arguments
@@ -224,7 +223,7 @@ if options.skip_flag:
         subject_id, f"{subject_id}_hard_manualLabel.mgz")
 
     if os.path.exists(ref_seg):
-        x = load_volume(ref_seg)
+        x = my.MRIread(ref_seg, im_only=True)
     else:
         sys.exit(f"Ground Truth doesn't exist for subject {subject_id}")
 
