@@ -219,7 +219,9 @@ stiffness_nonlin = options.stiffness_nonlin
 if options.skip_flag:
     slice_thickness = slice_thickness * options.multiply_factor
     subject_id = os.path.basename(os.path.dirname(options.input_photo_dir[0]))
-    ref_seg = f"/cluster/vive/UW_photo_recon/Photo_data/{subject_id}/ref_image/manual_labels_merged.elastix.mgz"
+    ref_seg = os.path.join(
+        "/cluster/vive/UW_photo_recon/recons/results_Henry/Results_hard",
+        subject_id, f"{subject_id}_hard_manualLabel.mgz")
 
     if os.path.exists(ref_seg):
         x = load_volume(ref_seg)
@@ -333,7 +335,19 @@ print("Resampling to highest target resolution: " + str(RESOLUTIONS[-1]) +
       " mm")
 
 Nslices0 = len(Iorig)
-Nslices = len(np.arange(start_idx, Nslices0, options.multiply_factor))
+select_slices = np.arange(start_idx, Nslices0, options.multiply_factor)
+
+if options.skip_flag:
+    if slice_idx in select_slices:
+        print(
+            f'NOTE: {subject_id}, GT Slice {slice_idx}, Skip {options.multiply_factor}, Selected'
+        )
+    else:
+        print(
+            f'NOTE: {subject_id}, GT Slice {slice_idx}, Skip {options.multiply_factor}, NOT Selected'
+        )
+
+Nslices = len(select_slices)
 Nscales = len(RESOLUTIONS)
 I = []
 M = []
@@ -910,11 +924,13 @@ for mode_idx in range(n_modes):
                                                      dim=0).to(model.device)
 
             if ref_type == "surface":
-                _, photo_resampled, photo_aff, mri_aff_combined, Rt = model()
+                _, photo_resampled, photo_aff, mri_aff_combined, Rt, M = model(
+                )
                 Rt = Rt.cpu().detach().numpy()
             else:
-                _, photo_resampled, photo_aff, mri_aff_combined, _ = model()
+                _, photo_resampled, photo_aff, mri_aff_combined, _, M = model()
 
+            M = M.cpu().detach().numpy()
             mri_aff_combined = mri_aff_combined.cpu().detach().numpy()
             photo_resampled = photo_resampled.cpu().detach().numpy()
             photo_aff = photo_aff.cpu().detach().numpy()
@@ -973,5 +989,13 @@ else:
         my.MRIwrite(photo_resampled, np.matmul(Tinv, photo_aff),
                     output_photo_recon)
         print("freeview %s %s" % (output_photo_recon, input_reference))
+
+if 'M' in locals():
+    try:
+        np.save(output_directory + "slice_matrix_M.npy", M)
+    except:
+        print('FAIL: M could not be saved')
+else:
+    print('DNE: M does not exist')
 
 print("All done!")
