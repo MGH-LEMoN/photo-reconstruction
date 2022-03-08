@@ -508,4 +508,4 @@ class PhotoAligner(nn.Module):
         if torch.isnan(loss):
             kk = 1
 
-        return loss, photo_resampled, photo_aff, mri_aff_combined, Rt
+        return loss, photo_resampled, photo_aff, mri_aff_combined, Rt, M

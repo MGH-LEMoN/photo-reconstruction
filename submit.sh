@@ -1,21 +1,23 @@
 #!/bin/bash
 #SBATCH --account=lcnrtx
-#SBATCH --partition=basic
+#SBATCH --partition=dgx-a100,rtx8000,rtx6000,lcnrtx
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=96G
-#SBATCH --time=0-01:00:00
-#SBATCH --output="./logs/%x.out"
-#SBATCH --error="./logs/%x.err"
+#SBATCH --gpus=1
+#SBATCH --cpus-per-task=2
+#SBATCH --mem=64G
+#SBATCH --time=0-00:30:00
+#SBATCH --output="./logs/hcp_recon/%x.out"
+#SBATCH --error="./logs/hcp_recon/%x.err"
 #SBATCH --mail-user=hvgazula@umich.edu
 #SBATCH --mail-type=FAIL
 
 source /space/calico/1/users/Harsha/venvs/recon-venv/bin/activate
 export PYTHONPATH=/space/calico/1/users/Harsha/photo-reconstruction
-# export LD_LIBRARY_PATH=/usr/pubsw/packages/CUDA/10.1/lib64:/usr/pubsw/packages/CUDA/10.2/lib64:/usr/pubsw/packages/CUDA/11.1/lib64
 
 echo 'Start time:' `date`
+start=$(date +%s)
+echo 'Node:' $HOSTNAME
 echo "$@"
 if [[ -v SLURM_ARRAY_TASK_ID ]]
 then
@@ -23,4 +25,6 @@ then
 else
     python "$@"
 fi
+end=$(date +%s)
 echo 'End time:' `date`
+echo "Elapsed Time: $(($end-$start)) seconds"

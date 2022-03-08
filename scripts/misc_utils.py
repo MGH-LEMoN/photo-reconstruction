@@ -1,5 +1,7 @@
 import glob
+import csv
 import os
+import re
 
 import ext.my_functions as my
 import numpy as np
@@ -209,6 +211,35 @@ def print_gt_slice_idx():
         ]))
 
 
+def get_hcp_subject_list():
+    T1_files = glob.glob(
+        os.path.join('/space/calico/1/users/Harsha/SynthSeg/data/4harshaHCP',
+                     '*.T1.*'))
+    T2_files = glob.glob(
+        os.path.join('/space/calico/1/users/Harsha/SynthSeg/data/4harshaHCP',
+                     '*.T2.*'))
+
+    T1_files = [
+        re.findall('[0-9]+', os.path.basename(file))[0] for file in T1_files
+    ]
+    T2_files = [
+        re.findall('[0-9]+', os.path.basename(file))[0] for file in T2_files
+    ]
+
+    common_subjects = sorted(set(T1_files).intersection(T2_files))
+
+    with open(os.path.join(
+            '/space/calico/1/users/Harsha/photo-reconstruction/results/hcp_subject_list.csv'
+    ),
+              'w',
+) as f:
+        f.write('\n'.join(common_subjects))
+        f.write('\n')
+
+    return
+
+
 if __name__ == '__main__':
     # grab_photos('soft_mask')
-    print_gt_slice_idx()
+    # print_gt_slice_idx()
+    get_hcp_subject_list()

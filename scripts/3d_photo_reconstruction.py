@@ -219,15 +219,15 @@ if options.skip_flag:
     slice_thickness = slice_thickness * options.multiply_factor
     subject_id = os.path.basename(os.path.dirname(options.input_photo_dir[0]))
     ref_seg = os.path.join(
-        "/cluster/vive/UW_photo_recon/recons/results_Henry/Results_hard",
-        subject_id, f"{subject_id}_hard_manualLabel.mgz")
+        os.getcwd(), 'data', 'UW_photo_recon/recons/results_Henry/Results_hard',
+        subject_id, f"{subject_id}_hard_manualLabel_merged.mgz")
 
     if os.path.exists(ref_seg):
         x = my.MRIread(ref_seg, im_only=True)
     else:
         sys.exit(f"Ground Truth doesn't exist for subject {subject_id}")
 
-    slice_idx = np.argmax((x > 1).sum(0).sum(0))
+    slice_idx = np.argmax((x > 1).sum(0).sum(0)) - 2 # subtracting 2 for padding
     start_idx = slice_idx % options.multiply_factor
 else:
     start_idx = 0
@@ -241,7 +241,7 @@ else:
     output_registered_reference = None
 
 if os.path.isdir(output_directory) is False:
-    os.mkdir(output_directory)
+    os.makedirs(output_directory,exist_ok=True)
 
 ########################################################
 
@@ -258,7 +258,7 @@ if ref_type == "mask":
     K_DICE_MRI = 0.95
     K_DICE_SLICES = 0.025
     K_NCC_SLICES = 0.025
-    K_REGULARIZER = 0.0025
+    K_REGULARIZER = 0.00025
     K_NCC_INTERMODALITY = None
     K_SURFACE_TERM = None
     K_NONLINEAR = stiffness_nonlin
@@ -293,6 +293,8 @@ print("Extracting slices from photographs")
 d_i = glob.glob(input_photo_dir + "/*.jpg")
 if len(d_i) == 0:
     d_i = glob.glob(input_photo_dir + "/*.tif")
+if len(d_i) == 0:
+    d_i = glob.glob(input_photo_dir + "/*.tiff")
 if len(d_i) == 0:
     d_i = glob.glob(input_photo_dir + "/*.JPG")
 d_i = sorted(d_i)
@@ -463,6 +465,9 @@ print("Reading and preprocessing reference")
 
 if ref_type != "surface":
     REF, REFaff = my.MRIread(input_reference)
+    if np.isnan(REF).any():
+        print('There are NaNs here')
+        REF[np.isnan(REF)] = 0
     REF = np.squeeze(REF)
     REF_orig = np.copy(REF)
     REFaff_orig = np.copy(REFaff)

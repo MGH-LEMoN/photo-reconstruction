@@ -1,4 +1,6 @@
-function propagate_manual_segs_slices_elastix_smart(reference_intensities, reference_segmentation, target_intensities, output_segmentation, output_QC_prefix)
+function propagate_manual_segs_slices_elastix_smart(reference_intensities, reference_segmentation, target_intensities, output_segmentation, output_QC_prefix, skip, labeled_slice)
+
+skip = str2double(skip);
 
 % clear
 % export reference_intensities='/autofs/cluster/vive/UW_photo_recon/recons/results_Henry/Results_hard/18-0086/18-0086.hard.recon.mgz'
@@ -39,7 +41,7 @@ PARAMFILE_SIMILARITY = '/autofs/cluster/vive/UW_photo_recon/elastix46/similarity
 PARAMFILE_AFFINE = '/autofs/cluster/vive/UW_photo_recon/elastix46/affine_ssd.txt ';
 
 % Read in images + segmentation
-disp('Reading in volumes');
+% disp('Reading in volumes');
 refI = MRIread(reference_intensities);
 refS = MRIread(reference_segmentation);
 sizI = size(refI.vol);
@@ -61,23 +63,43 @@ end
 F = uint8(mean(refI.vol(:,:,z,:),4));
 FL = uint8(refS.vol(:,:,z,:));
 
-% OK now we need to find the corresponding slice in the target volume
-% We used this with simple statistics
-disp('Finding corresponding slice in target volume');
-nims = size(tarI.vol,3);
-costs = zeros(1, nims);
-M = F > 0;
-Fhist = hist(F(M),1:255);
-Fhist = Fhist / sum(Fhist);
-for i = 1 : nims
-    I = uint8(mean(squeeze(tarI.vol(:,:,i,:)),3));
-    M = I > 0;
-    Ihist = hist(I(M),1:255);
-    Ihist = Ihist / sum(Ihist);
-    costs(i) = sum(abs(Ihist-Fhist));
+disp(z)
+if false,
+    % OK now we need to find the corresponding slice in the target volume
+    % We used this with simple statistics
+    % disp('Finding corresponding slice in target volume');
+    nims = size(tarI.vol,3);
+    costs = zeros(1, nims);
+    M = F > 0;
+    Fhist = hist(F(M),1:255);
+    Fhist = Fhist / sum(Fhist);
+    for i = 1 : nims
+        I = uint8(mean(squeeze(tarI.vol(:,:,i,:)),3));
+        M = I > 0;
+        Ihist = hist(I(M),1:255);
+        Ihist = Ihist / sum(Ihist);
+        costs(i) = sum(abs(Ihist-Fhist));
+    end
+    costs(isnan(costs))=1;
+    [tmp, z] = min(costs);
+elseif
+    first = min(find(sum(sum(tarI.vol(:,:,:,1),1),2) > 0));
+    pad = first - 1    %first = min(find(sum(sum(tarI.vol(:,:,:,1),1),2) > 0));
+    if skip == 1
+        z = (z-2) + pad;
+    else
+        z = 1 + pad + ((z-2) - mod(z-2,skip )) / skip;
+    end
+
+else
+    if skip == 1
+        z = pad + labeled_slice;
+    else
+        z = 1 + pad + (labeled_slice - mod(labeled_slice,skip )) / skip;
+    end
 end
-costs(isnan(costs))=1;
-[tmp, z] = min(costs);
+
+disp(z)
 
 %%%%%%%%%%5
 R = uint8(mean(tarI.vol(:,:,z,:),4));
@@ -89,12 +111,12 @@ imwrite(R,[tempdir '/ref.png']);
 best_rmse = inf;
 best_labs = [];
 best_im = [];
-disp('Registering with 8 different initializations');
+% disp('Registering with 8 different initializations');
 c = 0;
 for flip = 0:1
     for rotation  = 0:90:270
-        c = c +1;
-        disp(['   ' num2str(c) ' of 8']);
+        c = c + 1;
+        % disp(['   ' num2str(c) ' of 8']);
         im = F;
         if flip, im = fliplr(im); end
         im = imrotate(im,rotation);
@@ -128,7 +150,7 @@ for flip = 0:1
         end
     end
 end
-disp('Writing results to disk');
+% disp('Writing results to disk');
 mri = tarI;
 mri.vol(:) = 0;
 mri.vol = mri.vol(:,:,:,1);
