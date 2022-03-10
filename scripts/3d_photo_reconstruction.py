@@ -251,6 +251,11 @@ STEPS = [25, 25, 25, 25]
 if FAST:
     STEPS = [10, 2, 2, 2]
 
+if RESOLUTIONS[-1] < photo_res:
+    RESOLUTIONS[-1] = photo_res
+
+
+
 LR = 1.0
 TOL = 1e-6
 
@@ -297,6 +302,8 @@ if len(d_i) == 0:
     d_i = glob.glob(input_photo_dir + "/*.tiff")
 if len(d_i) == 0:
     d_i = glob.glob(input_photo_dir + "/*.JPG")
+if len(d_i) == 0:
+    d_i = glob.glob(input_photo_dir + "/*.png")
 d_i = sorted(d_i)
 
 d_s = glob.glob(input_segmentation_dir + "/*.mat")
