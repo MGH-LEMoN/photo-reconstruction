@@ -23,7 +23,7 @@ def grab_photos(ref_string):
     photo_path = os.path.join(DATA_DIR, 'Photo_data')
     subject_list = sorted(glob.glob(os.path.join(photo_path, '*')))
 
-    for skip_val in [2, 3, 4]:
+    for skip_val in [1, 2, 3, 4]:
         ref_folder_string = f'ref_{ref_string}_skip_{skip_val}'
         dst_pdf = os.path.join(os.getcwd(), ref_folder_string + '.pdf')
         dst_dir = os.path.join(os.getcwd(), ref_folder_string)
