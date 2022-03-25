@@ -476,6 +476,16 @@ if ref_type != "surface":
         print('There are NaNs here')
         REF[np.isnan(REF)] = 0
     REF = np.squeeze(REF)
+
+    # Eugenio: added padding here; usefull when using hard masks from mris_fill
+    pad = 10
+    REF_padded = np.zeros(np.array(REF.shape) + 2 * pad)
+    REF_padded[pad:-pad, pad:-pad, pad:-pad] = REF
+    REFaff_padded = np.copy(REFaff)
+    REFaff_padded [:-1, -1] = REFaff_padded [:-1, -1] - np.matmul(REFaff_padded [:-1, :-1], np.array([pad, pad, pad]))
+    REF = REF_padded
+    REFaff = REFaff_padded
+
     REF_orig = np.copy(REF)
     REFaff_orig = np.copy(REFaff)
 
