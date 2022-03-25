@@ -82,9 +82,9 @@ if false,
     end
     costs(isnan(costs))=1;
     [tmp, z] = min(costs);
-elseif
+elseif false
     first = min(find(sum(sum(tarI.vol(:,:,:,1),1),2) > 0));
-    pad = first - 1    %first = min(find(sum(sum(tarI.vol(:,:,:,1),1),2) > 0));
+    pad = first - 1;    %first = min(find(sum(sum(tarI.vol(:,:,:,1),1),2) > 0));
     if skip == 1
         z = (z-2) + pad;
     else
@@ -92,6 +92,7 @@ elseif
     end
 
 else
+    pad = 3;
     if skip == 1
         z = pad + labeled_slice;
     else

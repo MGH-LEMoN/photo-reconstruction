@@ -14,20 +14,22 @@ list:
 	@LC_ALL=C $(MAKE) -pRrq -f $(lastword $(MAKEFILE_LIST)) : 2>/dev/null | awk -v RS= -F: '/^# File/,/^# Finished Make data base/ {if ($$1 !~ "^[#.]") {print $$1}}' | sort | egrep -v -e '^[^[:alnum:]]' -e '^$@$$'
 
 
-CMD := echo 
+CMD := sbatch --job-name=$$skip-$$p submit.sh 
 # {echo | python | sbatch --job-name=$$skip-$$p submit.sh}
 PICS = 17-0333 18-0086 18-0444 18-0817 18-1045 18-1132 18-1196 18-1274 18-1327 18-1343 18-1470 18-1680 18-1690 18-1704 18-1705 18-1724 18-1754 18-1913 18-1930 18-2056 18-2128 18-2259 18-2260 19-0019 19-0037 19-0100 19-0138 19-0148
-SKIP_SLICE := $(shell seq 1 4)
+SKIP_SLICE := $(shell seq 4 4)
 
 ## ref_mask: Run reconstruction with hard reference
-recon_%: OUT_DIR=/space/calico/1/users/Harsha/photo-reconstruction/results/uw_recons
+recon_%: PRJCT_DIR=/space/calico/1/users/Harsha/photo-reconstruction
+recon_%: OUT_DIR=$(PRJCT_DIR)/results/uw_recons
+recon_%: DATA_DIR=$(PRJCT_DIR)/data/UW_photo_recon
 recon_mask:
 	for p in $(PICS); do \
 		for skip in $(SKIP_SLICE); do \
 			sbatch --job-name=hard-$$skip-$$p submit.sh scripts/3d_photo_reconstruction.py \
-			--input_photo_dir /autofs/cluster/vive/UW_photo_recon/Photo_data/$$p/$$p\_MATLAB \
-			--input_segmentation_dir /autofs/cluster/vive/UW_photo_recon/Photo_data/$$p/$$p\_MATLAB \
-			--ref_mask /autofs/cluster/vive/UW_photo_recon/FLAIR_Scan_Data/NP$$p.rotated.binary.mgz \
+			--input_photo_dir $(DATA_DIR)/Photo_data/$$p/$$p\_MATLAB \
+			--input_segmentation_dir $(DATA_DIR)/Photo_data/$$p/$$p\_MATLAB \
+			--ref_mask $(DATA_DIR)/FLAIR_Scan_Data/NP$$p.rotated.binary.mgz \
 			--photos_of_posterior_side \
 			--allow_z_stretch \
 			--slice_thickness 4 \
@@ -44,9 +46,9 @@ recon_image:
 	for p in $(PICS); do \
 		for skip in $(SKIP_SLICE); do \
 			sbatch --job-name=image-$$skip-$$p submit.sh scripts/3d_photo_reconstruction.py \
-			--input_photo_dir /autofs/cluster/vive/UW_photo_recon/Photo_data/$$p/$$p\_MATLAB \
-			--input_segmentation_dir /autofs/cluster/vive/UW_photo_recon/Photo_data/$$p/$$p\_MATLAB \
-			--ref_image /autofs/cluster/vive/UW_photo_recon/FLAIR_Scan_Data/NP$$p.rotated.masked.mgz \
+			--input_photo_dir $(DATA_DIR)/Photo_data/$$p/$$p\_MATLAB \
+			--input_segmentation_dir $(DATA_DIR)/Photo_data/$$p/$$p\_MATLAB \
+			--ref_image $(DATA_DIR)/FLAIR_Scan_Data/NP$$p.rotated.masked.mgz \
 			--photos_of_posterior_side \
 			--allow_z_stretch \
 			--slice_thickness 4 \
@@ -63,9 +65,9 @@ recon_soft_mask:
 	for p in $(PICS); do \
 		for skip in $(SKIP_SLICE); do \
 			sbatch --job-name=soft-$$skip-$$p submit.sh scripts/3d_photo_reconstruction.py \
-			--input_photo_dir /autofs/cluster/vive/UW_photo_recon/Photo_data/$$p/$$p\_MATLAB \
-			--input_segmentation_dir /autofs/cluster/vive/UW_photo_recon/Photo_data/$$p/$$p\_MATLAB \
-			--ref_soft_mask /autofs/cluster/vive/UW_photo_recon/prob_atlases/onlyCerebrum.nii.gz \
+			--input_photo_dir $(DATA_DIR)/Photo_data/$$p/$$p\_MATLAB \
+			--input_segmentation_dir $(DATA_DIR)/Photo_data/$$p/$$p\_MATLAB \
+			--ref_soft_mask $(DATA_DIR)/prob_atlases/onlyCerebrum.nii.gz \
 			--photos_of_posterior_side \
 			--allow_z_stretch \
 			--slice_thickness 4 \
