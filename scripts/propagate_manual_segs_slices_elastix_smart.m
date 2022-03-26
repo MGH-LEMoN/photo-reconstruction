@@ -22,7 +22,7 @@ skip = str2double(skip);
 [parent_dir, ~, ~] = fileparts(target_intensities);
 output_dir = fullfile(parent_dir, 'propagated_labels');
 tempdir = output_dir;
-mkdir(tempdir)
+mkdir(tempdir);
 
 output_segmentation = fullfile(output_dir, output_segmentation);
 output_QC_prefix = fullfile(output_dir, output_QC_prefix);
@@ -63,7 +63,7 @@ end
 F = uint8(mean(refI.vol(:,:,z,:),4));
 FL = uint8(refS.vol(:,:,z,:));
 
-disp(z)
+% disp(z)
 if false,
     % OK now we need to find the corresponding slice in the target volume
     % We used this with simple statistics
@@ -100,7 +100,7 @@ else
     end
 end
 
-disp(z)
+% disp(z);
 
 %%%%%%%%%%5
 R = uint8(mean(tarI.vol(:,:,z,:),4));
