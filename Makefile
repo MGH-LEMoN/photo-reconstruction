@@ -114,23 +114,30 @@ hcp_test:
 		IFS=' '
 	done
 
-propagate_gt: SKIP_SLICE := $(shell seq 1 1)
+propagate_gt: SKIP_SLICE := $(shell seq 1 4)
 propagate_gt: REF_DIR=/space/calico/1/users/Harsha/photo-reconstruction/data/UW_photo_recon/recons/results_Henry/Results_hard
-propagate_gt: RUN_CMD := pbsubmit -m hg824 -c
+propagate_gt: REF_KEY := hard
+# {hard | soft | image}
+propagate_gt: RUN_CMD := sbatch --job-name=$(REF_KEY)-$$skip-$$sid submit.sh
 # {sbatch --job-name=hard-$$skip-$$sid submit.sh | pbsubmit -m hg824 -c | echo}
-propagate_gt: REF_KEY := soft_mask
-# {mask | soft_mask | image}
 propagate_gt:
 	while IFS=, read -r sid gt_idx _
 	do
-		echo $$sid
-		echo $$gt_idx
 		for skip in $(SKIP_SLICE); do \
 			reference_intensities=$(REF_DIR)/$$sid/$$sid.hard.recon.mgz
 			reference_segmentation=$(REF_DIR)/$$sid/$$sid\_hard_manualLabel_merged.mgz
-			target_intensities=/space/calico/1/users/Harsha/photo-reconstruction/results/uw_recons/$$sid/ref_hard_skip_$$skip/photo_recon.mgz
+			target_intensities=/space/calico/1/users/Harsha/photo-reconstruction/results/UW_photo_recon/$$sid/ref_$(REF_KEY)_skip_$$skip/photo_recon.mgz
 			output_segmentation=$$sid\_seg_output.mgz
 			output_QC_prefix=$$sid\_seg_output_QC
-			echo $(RUN_CMD) matlab -nodisplay -nosplash -r "cd('scripts'); propagate_manual_segs_slices_elastix_smart('$$reference_intensities', '$$reference_segmentation', '$$target_intensities', '$$output_segmentation', '$$output_QC_prefix', '$$skip', $$gt_idx); exit"
+			$(RUN_CMD) matlab -nodisplay -nosplash -r "cd('scripts'); propagate_manual_segs_slices_elastix_smart('$$reference_intensities', '$$reference_segmentation', '$$target_intensities', '$$output_segmentation', '$$output_QC_prefix', '$$skip', $$gt_idx); exit"
 		done; \
 	done < ./results/uw_gt_map.csv
+
+## test-mlsc: Test running matlab on mlsc
+test-mlsc:
+	sbatch submit.sh matlab -nodisplay -nosplash -nojvm -r "cd('misc'); fact('5')"
+
+## test-launchpad: Test running matlab on launchpad
+# Notice the use \" in this compared to the mlsc command
+test-launchpad:
+	pbsubmit -q matlab -n 2 -O fact1.out -E fact1.err -m hvgazula@umich.edu -e -c "matlab -nodisplay -nosplash -nojvm -r \"cd('misc'); fact('5')\""

@@ -1,11 +1,11 @@
-import glob
 import csv
+import glob
 import os
 import re
 
 import ext.my_functions as my
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from tabulate import tabulate
 
 PRJCT_KEY = 'UW_photo_recon'
@@ -22,6 +22,7 @@ def grab_diff_photos(ref_string):
     """
     # photo_path = os.path.join(DATA_DIR, 'Photo_data')
     subject_list = sorted(glob.glob(os.path.join(RESULTS_DIR, '*')))
+    subject_list = [item for item in subject_list if os.path.isdir(item)]
 
     for skip_val in [1, 2, 3, 4]:
         ref_folder_string = f'ref_{ref_string}_skip_{skip_val}'
@@ -37,14 +38,20 @@ def grab_diff_photos(ref_string):
                 continue
             src_file = diff_file[0]
 
+            image = Image.open(src_file)
+            draw = ImageDraw.Draw(image)
+            draw.text((image.size[0] // 2, 10),
+                      os.path.basename(subject),
+                      fill='white',
+                      align="center")
             # imagelist is the list with all image filenames
-            im_list.append(Image.open(src_file))
+            im_list.append(image)
 
         im_list[0].save(dst_pdf,
                         "PDF",
                         resolution=100.0,
                         save_all=True,
-                        append_images=im_list)
+                        append_images=im_list[1:])
 
 
 def grab_diff_photos_main():

@@ -83,8 +83,8 @@ elseif false
     end
 else
     pad = 3;
-    x = (labeled_slice - 1)
-    z = 1 + pad + (x - mod(x, skip)) / skip
+    x = (labeled_slice - 1);
+    z = 1 + pad + (x - mod(x, skip)) / skip;
     
     % or %
     % x = labeled_slice - max(mod(labeled_slice, skip), 1);
