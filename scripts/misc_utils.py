@@ -1,33 +1,32 @@
-import glob
 import csv
+import glob
 import os
 import re
 
 import ext.my_functions as my
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from tabulate import tabulate
 
 PRJCT_KEY = 'UW_photo_recon'
 PRJCT_DIR = '/space/calico/1/users/Harsha/photo-reconstruction/'
 DATA_DIR = os.path.join(PRJCT_DIR, 'data', PRJCT_KEY)
-RESULTS_DIR = os.path.join(PRJCT_DIR, 'results')
+RESULTS_DIR = os.path.join(PRJCT_DIR, 'results', PRJCT_KEY)
 
 
-def grab_photos(ref_string):
+def grab_diff_photos(ref_string):
     """_summary_
 
     Args:
-        ref_string (str): options include 'image', 'mask', 'soft_mask'
+        ref_string (str): options include 'image', 'hard', 'soft'
     """
-    photo_path = os.path.join(DATA_DIR, 'Photo_data')
-    subject_list = sorted(glob.glob(os.path.join(photo_path, '*')))
+    # photo_path = os.path.join(DATA_DIR, 'Photo_data')
+    subject_list = sorted(glob.glob(os.path.join(RESULTS_DIR, '*')))
+    subject_list = [item for item in subject_list if os.path.isdir(item)]
 
     for skip_val in [1, 2, 3, 4]:
         ref_folder_string = f'ref_{ref_string}_skip_{skip_val}'
-        dst_pdf = os.path.join(os.getcwd(), ref_folder_string + '.pdf')
-        dst_dir = os.path.join(os.getcwd(), ref_folder_string)
-        os.makedirs(dst_dir, exist_ok=True)
+        dst_pdf = os.path.join(RESULTS_DIR, ref_folder_string + '.pdf')
 
         im_list = []
         for subject in subject_list:
@@ -37,23 +36,27 @@ def grab_photos(ref_string):
 
             if len(diff_file) == 0:
                 continue
-
             src_file = diff_file[0]
-            src_fname = os.path.basename(src_file)
 
-            dst_file = os.path.join(dst_dir, src_fname)
-
-            if not os.path.exists(dst_file):
-                os.symlink(src_file, dst_file)
-
+            image = Image.open(src_file)
+            draw = ImageDraw.Draw(image)
+            draw.text((image.size[0] // 2, 10),
+                      os.path.basename(subject),
+                      fill='white',
+                      align="center")
             # imagelist is the list with all image filenames
-            im_list.append(Image.open(src_file))
+            im_list.append(image)
 
         im_list[0].save(dst_pdf,
                         "PDF",
                         resolution=100.0,
                         save_all=True,
-                        append_images=im_list)
+                        append_images=im_list[1:])
+
+
+def grab_diff_photos_main():
+    for ref in ['hard', 'soft', 'image']:
+        grab_diff_photos(ref)
 
 
 def return_common_subjects(*args):
@@ -178,7 +181,7 @@ def get_gt_slice_idx(seg_vol, recon_vol=None):
     return slice_idx
 
 
-def print_gt_slice_idx():
+def print_uw_gt_map():
     """Print the index of the GT slice (excludes padding)
     Note: This info is relevant for simulating skips in reconstruction
     """
@@ -203,12 +206,15 @@ def print_gt_slice_idx():
         idx2 = get_gt_slice_idx(hard_seg, hard_recon)
         subject_gt_idx.append([subject_id, idx2])
 
-    with open(os.path.join(RESULTS_DIR, 'output_gt_slice_idx_hard.txt'),
-              'w') as f:
+    with open(os.path.join(RESULTS_DIR, 'uw_gt_map.csv'), 'w') as f:
         f.write(tabulate(subject_gt_idx, headers=[
             'subject',
             'gt_slice_idx',
         ]))
+
+    with open(os.path.join(RESULTS_DIR, 'uw_gt_map.csv'), 'w') as f:
+        writer = csv.writer(f)
+        writer.writerows(subject_gt_idx)
 
 
 def get_hcp_subject_list():
@@ -228,11 +234,12 @@ def get_hcp_subject_list():
 
     common_subjects = sorted(set(T1_files).intersection(T2_files))
 
-    with open(os.path.join(
-            '/space/calico/1/users/Harsha/photo-reconstruction/results/hcp_subject_list.csv'
-    ),
-              'w',
-) as f:
+    with open(
+            os.path.join(
+                '/space/calico/1/users/Harsha/photo-reconstruction/results/hcp_subject_list.csv'
+            ),
+            'w',
+    ) as f:
         f.write('\n'.join(common_subjects))
         f.write('\n')
 
@@ -240,6 +247,6 @@ def get_hcp_subject_list():
 
 
 if __name__ == '__main__':
-    # grab_photos('soft_mask')
-    # print_gt_slice_idx()
-    get_hcp_subject_list()
+    grab_diff_photos_main()
+    # print_uw_gt_map()
+    # get_hcp_subject_list()

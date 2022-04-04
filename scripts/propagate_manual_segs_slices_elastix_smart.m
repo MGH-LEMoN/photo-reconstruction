@@ -11,18 +11,10 @@ skip = str2double(skip);
 
 % matlab -nodisplay -nosplash -r "propagate_manual_segs_slices_elastix_smart('$reference_intensities', '$reference_segmentation', '$target_intensities', '$output_segmentation', '$output_QC_prefix'); exit"
 
-%disp(reference_intensities)
-%disp(reference_segmentation)
-%disp(target_intensities)
-%disp(output_segmentation)
-%disp(output_QC_prefix)
-
-%disp(fsgettmppath)
-
 [parent_dir, ~, ~] = fileparts(target_intensities);
 output_dir = fullfile(parent_dir, 'propagated_labels');
 tempdir = output_dir;
-mkdir(tempdir)
+mkdir(tempdir);
 
 output_segmentation = fullfile(output_dir, output_segmentation);
 output_QC_prefix = fullfile(output_dir, output_QC_prefix);
@@ -63,7 +55,6 @@ end
 F = uint8(mean(refI.vol(:,:,z,:),4));
 FL = uint8(refS.vol(:,:,z,:));
 
-disp(z)
 if false,
     % OK now we need to find the corresponding slice in the target volume
     % We used this with simple statistics
@@ -90,17 +81,16 @@ elseif false
     else
         z = 1 + pad + ((z-2) - mod(z-2,skip )) / skip;
     end
-
 else
     pad = 3;
-    if skip == 1
-        z = pad + labeled_slice;
-    else
-        z = 1 + pad + (labeled_slice - mod(labeled_slice,skip )) / skip;
-    end
+    x = (labeled_slice - 1);
+    z = 1 + pad + (x - mod(x, skip)) / skip;
+    
+    % or %
+    % x = labeled_slice - max(mod(labeled_slice, skip), 1);
+    % r = mod(x, skip);
+    % z = 1 + pad + (x - r) / skip;
 end
-
-disp(z)
 
 %%%%%%%%%%5
 R = uint8(mean(tarI.vol(:,:,z,:),4));
