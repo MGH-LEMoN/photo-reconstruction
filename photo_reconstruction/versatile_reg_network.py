@@ -187,6 +187,7 @@ class PhotoAligner(nn.Module):
         vectors = [torch.arange(0, s) for s in self.photo_mask_vol.shape]
         self.grids = torch.stack(torch.meshgrid(vectors)).to(self.device)
 
+
     def forward(self):
 
         # We scale angles / shearings / scalings as a simple form of preconditioning (which shouldn't be needed with bfgs, but whatever...)
@@ -431,28 +432,68 @@ class PhotoAligner(nn.Module):
         if self.ref_type == 'image':
 
             # I now do slice-wise ncc, rather than slice-wise lncc
+            if False:
 
-            # ncc_mri = slice_wise_LNCC(mri_resampled[:, :, self.pad_ignore[0]:-self.pad_ignore[1]], photo_resampled[:, :, self.pad_ignore[0]:-self.pad_ignore[1], 0]) / 3.0 + \
-            #           slice_wise_LNCC(mri_resampled[:, :, self.pad_ignore[0]:-self.pad_ignore[1]], photo_resampled[:, :, self.pad_ignore[0]:-self.pad_ignore[1], 1]) / 3.0 + \
-            #           slice_wise_LNCC(mri_resampled[:, :, self.pad_ignore[0]:-self.pad_ignore[1]], photo_resampled[:, :, self.pad_ignore[0]:-self.pad_ignore[1], 2]) / 3.0
+                def slice_wise_LNCC(I, J, win_semilen=4):
 
-            nccs = torch.zeros(
-                3, self.Nslices - self.pad_ignore[0] - self.pad_ignore[1]).to(
-                    self.device)
-            for z in range(self.Nslices - self.pad_ignore[0] -
-                           self.pad_ignore[1]):
-                x = mri_resampled[:, :, z + self.pad_ignore[0]]
-                mx = torch.mean(x)
-                vx = x - mx
-                for c in range(3):
-                    y = photo_resampled[:, :, z + self.pad_ignore[0], c]
-                    my = torch.mean(y)
-                    vy = y - my
-                    nccs[c, z] = torch.mean(vx * vy) / torch.sqrt(
-                        torch.clamp(torch.mean(vx**2), min=1e-5)) / torch.sqrt(
-                            torch.clamp(torch.mean(vy**2), min=1e-5))
+                    # set window size
+                    win = [1 + 2 * win_semilen, 1 + 2 * win_semilen, 1]
+                    sum_filt = torch.ones([1, 1, *win]).to(I.device)
+                    pad_no = win_semilen
+                    stride = (1, 1, 1)
+                    padding = (pad_no, pad_no, 0)
 
-            ncc_mri = torch.mean(nccs)
+                    # get convolution function
+                    conv = getattr(torch.nn.functional, 'conv3d')
+
+                    Ipad = I[None, None, ...] / torch.max(I)
+                    Jpad = J[None, None, ...] / torch.max(J)
+
+                    # compute CC squares
+                    I2 = Ipad * Ipad
+                    J2 = Jpad * Jpad
+                    IJ = Ipad * Jpad
+
+                    I_sum = conv(Ipad, sum_filt, stride=stride, padding=padding)
+                    J_sum = conv(Jpad, sum_filt, stride=stride, padding=padding)
+                    I2_sum = conv(I2, sum_filt, stride=stride, padding=padding)
+                    J2_sum = conv(J2, sum_filt, stride=stride, padding=padding)
+                    IJ_sum = conv(IJ, sum_filt, stride=stride, padding=padding)
+
+                    win_size = np.prod(win)
+                    u_I = I_sum / win_size
+                    u_J = J_sum / win_size
+
+                    cross = IJ_sum - u_J * I_sum - u_I * J_sum + u_I * u_J * win_size
+                    I_var = I2_sum - 2 * u_I * I_sum + u_I * u_I * win_size
+                    J_var = J2_sum - 2 * u_J * J_sum + u_J * u_J * win_size
+
+                    cc = (cross * cross ) / (I_var * J_var + 1e-6)
+
+                    return torch.mean(cc)
+
+                ncc_mri = slice_wise_LNCC(mri_resampled[:, :, self.pad_ignore[0]:-self.pad_ignore[1]], photo_resampled[:, :, self.pad_ignore[0]:-self.pad_ignore[1], 0]) / 3.0 + \
+                          slice_wise_LNCC(mri_resampled[:, :, self.pad_ignore[0]:-self.pad_ignore[1]], photo_resampled[:, :, self.pad_ignore[0]:-self.pad_ignore[1], 1]) / 3.0 + \
+                          slice_wise_LNCC(mri_resampled[:, :, self.pad_ignore[0]:-self.pad_ignore[1]], photo_resampled[:, :, self.pad_ignore[0]:-self.pad_ignore[1], 2]) / 3.0
+
+            else:
+                nccs = torch.zeros(
+                    3, self.Nslices - self.pad_ignore[0] - self.pad_ignore[1]).to(
+                        self.device)
+                for z in range(self.Nslices - self.pad_ignore[0] -
+                               self.pad_ignore[1]):
+                    x = mri_resampled[:, :, z + self.pad_ignore[0]]
+                    mx = torch.mean(x)
+                    vx = x - mx
+                    for c in range(3):
+                        y = photo_resampled[:, :, z + self.pad_ignore[0], c]
+                        my = torch.mean(y)
+                        vy = y - my
+                        nccs[c, z] = torch.mean(vx * vy) / torch.sqrt(
+                            torch.clamp(torch.mean(vx**2), min=1e-5)) / torch.sqrt(
+                                torch.clamp(torch.mean(vy**2), min=1e-5))
+
+                ncc_mri = torch.mean(nccs)
 
         else:
             num = torch.sum(2 * (mri_resampled * mask_resampled))
@@ -509,3 +550,5 @@ class PhotoAligner(nn.Module):
             kk = 1
 
         return loss, photo_resampled, photo_aff, mri_aff_combined, Rt, M
+
+

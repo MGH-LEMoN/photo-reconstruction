@@ -53,6 +53,11 @@ parser.add_argument("--ref_soft_mask",
                     help="Reference soft mask",
                     default=None)
 
+parser.add_argument("--DL_synthesis",
+                    type=str,
+                    help="Model for deep learning synthesis (highly experimental!)",
+                    default=None)
+
 parser.add_argument(
     "--mesh_autoalign_target",
     type=str,
@@ -186,6 +191,8 @@ else:
     input_reference = options.ref_surface
     ref_type = "surface"
 
+DL_synthesis_model = options.DL_synthesis
+
 if not os.path.exists(input_reference):
     sys.exit(f"DNE: {input_reference}")
 
@@ -246,13 +253,19 @@ if os.path.isdir(output_directory) is False:
 ########################################################
 
 # Constants
-RESOLUTIONS = [4, 2, 1, 0.5]
-STEPS = [25, 25, 25, 25]
-if FAST:
-    STEPS = [10, 2, 2, 2]
+if DL_synthesis_model is None:
+    RESOLUTIONS = [4, 2, 1, 0.5]
+    STEPS = [25, 25, 25, 25]
+    if FAST:
+        STEPS = [10, 2, 2, 2]
 
-if RESOLUTIONS[-1] < photo_res:
-    RESOLUTIONS[-1] = photo_res
+    if RESOLUTIONS[-1] < photo_res:
+        RESOLUTIONS[-1] = photo_res
+else:
+    RESOLUTIONS = [4, 2, 1]
+    STEPS = [25, 25, 25]
+    if FAST:
+        STEPS = [10, 2, 2]
 
 
 
@@ -798,17 +811,51 @@ for mode_idx in range(n_modes):
             k_ncc_intermodality_iteration = K_NCC_INTERMODALITY
             k_surface_term_iteration = K_SURFACE_TERM
 
-            REF = my.grad3d(np.copy(REF_orig))
+            if DL_synthesis_model is None:
+                # Standard mode: we use NCC on gradient maps
+                REF = my.grad3d(np.copy(REF_orig))
 
-            for s in range(Nscales):
-                erode_its = np.ceil(1.0 / RESOLUTIONS[s]).astype("int")
+                for s in range(Nscales):
+                    erode_its = np.ceil(1.0 / RESOLUTIONS[s]).astype("int")
+                    for z in range(Nslices):
+                        # M_ERODED = scipy.ndimage.binary_erosion(Ms[s][:, :, z] > .5, iterations=erode_its)
+                        for c in range(3):
+                            Is[s][:, :, z, c] = my.grad2d(Is[s][:, :, z,
+                                                                c])  # * M_ERODED
+                    if ref_type == "surface":
+                        Is[s] = Is[s] / 255.0  # Otherwise loss goes bananas...
+            else:
+                # Experimental mode: deep learning based synthesis of MRI-like slices from the photos
+                # (note that this requires providing a reference processed with SynthSR)
+                REF = np.copy(REF_orig)
+                tempdir = output_directory + '/temp/'
+                os.system('rm -rf ' + tempdir)
+                os.mkdir(tempdir)
+                tempdir2 = output_directory + '/temp2/'
+                os.system('rm -rf ' + tempdir2)
+                os.mkdir(tempdir2)
                 for z in range(Nslices):
-                    # M_ERODED = scipy.ndimage.binary_erosion(Ms[s][:, :, z] > .5, iterations=erode_its)
-                    for c in range(3):
-                        Is[s][:, :, z, c] = my.grad2d(Is[s][:, :, z,
-                                                            c])  # * M_ERODED
-                if ref_type == "surface":
-                    Is[s] = Is[s] / 255.0  # Otherwise loss goes bananas...
+                    cv2.imwrite(tempdir + str(z) + '.png', np.mean(Is[-1][:, :, z], axis=-1).astype('B'))
+                scriptdir = os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[0])))
+                os.system(scriptdir + '/run_synthesis.sh ' + tempdir + ' ' + tempdir2 + ' ' + DL_synthesis_model)
+                for z in range(Nslices):
+                    aux = cv2.imread(tempdir2 + str(z) + '_SynthSR.png').astype(float)
+                    aux[Is[s][:, :, z, :] ==0] = 0
+                    Is[s][:, :, z, :] = aux
+                os.system('rm -rf ' + tempdir)
+                os.system('rm -rf ' + tempdir2)
+                # Build pyramid
+                for s in np.arange(Nscales - 2, -1, -1):
+                    for z in range(Nslices):
+                        Isl = cv2.resize(
+                            Is[-1][:, :, z, :],
+                            None,
+                            fx=RESOLUTIONS[-1] / RESOLUTIONS[s],
+                            fy=RESOLUTIONS[-1] / RESOLUTIONS[s],
+                            interpolation=cv2.INTER_AREA,
+                        )
+                        Isl[Ms[s][:, :, z] == 0] = 0
+                        Is[s][:,:,z,:] = Isl
 
         else:
             ref_type_iteration = ref_type
