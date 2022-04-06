@@ -2,6 +2,7 @@ import csv
 import glob
 import os
 import re
+from distutils.dir_util import copy_tree
 
 import ext.my_functions as my
 import numpy as np
@@ -246,7 +247,20 @@ def get_hcp_subject_list():
     return
 
 
+def put_skip_recons_in_main_dir():
+    subject_list = sorted(glob.glob(os.path.join(RESULTS_DIR, '*')))
+    subject_list = [item for item in subject_list if os.path.isdir(item)]
+
+    for subject in subject_list:
+        subject_id = os.path.basename(subject)
+        print(subject_id)
+        src = subject
+        dst = os.path.join(DATA_DIR, 'Photo_data', subject_id)
+        copy_tree(src, dst)
+
+
 if __name__ == '__main__':
-    grab_diff_photos_main()
+    # grab_diff_photos_main()
+    put_skip_recons_in_main_dir()
     # print_uw_gt_map()
     # get_hcp_subject_list()
