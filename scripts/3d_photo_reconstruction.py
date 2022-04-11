@@ -226,7 +226,7 @@ if options.skip_flag:
     slice_thickness = slice_thickness * options.multiply_factor
     subject_id = os.path.basename(os.path.dirname(options.input_photo_dir[0]))
     ref_seg = os.path.join(
-        os.getcwd(), 'data', 'UW_photo_recon/recons/results_Henry/Results_hard',
+        os.getcwd(), 'data', 'uw_photo/recons/results_Henry/Results_hard',
         subject_id, f"{subject_id}_hard_manualLabel_merged.mgz")
 
     if os.path.exists(ref_seg):

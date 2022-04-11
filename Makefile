@@ -18,15 +18,15 @@ SKIP_SLICE := $(shell seq 1 4)
 
 ## recon_ref_hard: Run reconstruction with hard reference
 recon_%: PRJCT_DIR=/space/calico/1/users/Harsha/photo-reconstruction
-recon_%: OUT_DIR=$(PRJCT_DIR)/results/uw_recons
-recon_%: DATA_DIR=$(PRJCT_DIR)/data/UW_photo_recon
+recon_%: OUT_DIR=$(PRJCT_DIR)/data/uw_photo
+recon_%: DATA_DIR=$(PRJCT_DIR)/data/uw_photo
 recon_ref_hard:
 	for p in $(PICS); do \
 		for skip in $(SKIP_SLICE); do \
 			sbatch --job-name=hard-$$skip-$$p submit.sh scripts/3d_photo_reconstruction.py \
 			--input_photo_dir $(DATA_DIR)/Photo_data/$$p/$$p\_MATLAB \
 			--input_segmentation_dir $(DATA_DIR)/Photo_data/$$p/$$p\_MATLAB \
-			--ref_mask $(DATA_DIR)/FLAIR_Scan_Data/NP$$p.rotated.binary.mgz \
+			--ref_mask $(DATA_DIR)/FLAIR_Scan_Data/$$p.rotated_cerebrum.mgz \
 			--photos_of_posterior_side \
 			--allow_z_stretch \
 			--slice_thickness 4 \
@@ -45,7 +45,7 @@ recon_ref_image:
 			sbatch --job-name=image-$$skip-$$p submit.sh scripts/3d_photo_reconstruction.py \
 			--input_photo_dir $(DATA_DIR)/Photo_data/$$p/$$p\_MATLAB \
 			--input_segmentation_dir $(DATA_DIR)/Photo_data/$$p/$$p\_MATLAB \
-			--ref_image $(DATA_DIR)/FLAIR_Scan_Data/NP$$p.rotated.masked.mgz \
+			--ref_image $(DATA_DIR)/FLAIR_Scan_Data/$$p.rotated_masked.mgz \
 			--photos_of_posterior_side \
 			--allow_z_stretch \
 			--slice_thickness 4 \
@@ -115,8 +115,8 @@ hcp_test:
 	done
 
 propagate_gt: SKIP_SLICE := $(shell seq 1 4)
-propagate_gt: REF_DIR=/space/calico/1/users/Harsha/photo-reconstruction/data/UW_photo_recon/recons/results_Henry/Results_hard
-propagate_gt: REF_KEY := hard
+propagate_gt: REF_DIR=/space/calico/1/users/Harsha/photo-reconstruction/data/uw_photo/recons/results_Henry/Results_hard
+propagate_gt: REF_KEY := image
 # {hard | soft | image}
 propagate_gt: RUN_CMD := sbatch --job-name=$(REF_KEY)-$$skip-$$sid submit.sh
 # {sbatch --job-name=hard-$$skip-$$sid submit.sh | pbsubmit -m hg824 -c | echo}
@@ -126,7 +126,7 @@ propagate_gt:
 		for skip in $(SKIP_SLICE); do \
 			reference_intensities=$(REF_DIR)/$$sid/$$sid.hard.recon.mgz
 			reference_segmentation=$(REF_DIR)/$$sid/$$sid\_hard_manualLabel_merged.mgz
-			target_intensities=/space/calico/1/users/Harsha/photo-reconstruction/results/UW_photo_recon/$$sid/ref_$(REF_KEY)_skip_$$skip/photo_recon.mgz
+			target_intensities=/space/calico/1/users/Harsha/photo-reconstruction/data/uw_photo/Photo_data/$$sid/ref_$(REF_KEY)_skip_$$skip/photo_recon.mgz
 			output_segmentation=$$sid\_seg_output.mgz
 			output_QC_prefix=$$sid\_seg_output_QC
 			$(RUN_CMD) matlab -nodisplay -nosplash -r "cd('scripts'); propagate_manual_segs_slices_elastix_smart('$$reference_intensities', '$$reference_segmentation', '$$target_intensities', '$$output_segmentation', '$$output_QC_prefix', '$$skip', $$gt_idx); exit"

@@ -4,11 +4,11 @@
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 ##SBATCH --gpus=1
-#SBATCH --cpus-per-task=2
-#SBATCH --mem=64G
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=32G
 #SBATCH --time=0-01:00:00
-#SBATCH --output="./logs/propagate/%x.out"
-#SBATCH --error="./logs/propagate/%x.err"
+#SBATCH --output="./logs/uw_photo-propagate/%x.out"
+#SBATCH --error="./logs/uw_photo-propagate/%x.err"
 #SBATCH --mail-user=hvgazula@umich.edu
 #SBATCH --mail-type=FAIL
 
