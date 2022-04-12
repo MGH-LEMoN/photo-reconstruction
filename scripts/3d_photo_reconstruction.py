@@ -992,13 +992,13 @@ for mode_idx in range(n_modes):
                                                      dim=0).to(model.device)
 
             if ref_type == "surface":
-                _, photo_resampled, photo_aff, mri_aff_combined, Rt, M = model(
+                _, photo_resampled, photo_aff, mri_aff_combined, Rt, TvoxPhotos = model(
                 )
                 Rt = Rt.cpu().detach().numpy()
             else:
-                _, photo_resampled, photo_aff, mri_aff_combined, _, M = model()
+                _, photo_resampled, photo_aff, mri_aff_combined, _, TvoxPhotos = model()
 
-            M = M.cpu().detach().numpy()
+            TvoxPhotos = TvoxPhotos.cpu().detach().numpy()
             mri_aff_combined = mri_aff_combined.cpu().detach().numpy()
             photo_resampled = photo_resampled.cpu().detach().numpy()
             photo_aff = photo_aff.cpu().detach().numpy()
@@ -1058,12 +1058,12 @@ else:
                     output_photo_recon)
         print("freeview %s %s" % (output_photo_recon, input_reference))
 
-if 'M' in locals():
+if 'TvoxPhotos' in locals():
     try:
-        np.save(output_directory + "slice_matrix_M.npy", M)
+        np.save(output_directory + "slice_matrix_M.npy", TvoxPhotos)
     except:
-        print('FAIL: M could not be saved')
+        print('FAIL: TvoxPhotos could not be saved')
 else:
-    print('DNE: M does not exist')
+    print('DNE: TvoxPhotos does not exist')
 
 print("All done!")
