@@ -333,6 +333,7 @@ Nphotos = len(d_i)
 Iorig = []
 Morig = []
 
+all_croppings = []
 for n in np.arange(Nphotos):
     X = np.flip(cv2.imread(d_i[n]), axis=-1)  # convert to RGB
 
@@ -341,7 +342,6 @@ for n in np.arange(Nphotos):
     else:
         Y = np.load(d_s[n])
 
-    all_croppings = []
     for l in 1 + np.arange(np.max(Y)):
         mask, cropping = my.cropLabelVol(Y == l, np.round(5 / photo_res))
         all_croppings.append(cropping)
