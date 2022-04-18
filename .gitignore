@@ -10,5 +10,6 @@ misc
 data/*
 results/*
 logs/*
+trash
 
 !.gitkeep

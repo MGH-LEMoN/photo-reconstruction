@@ -4,10 +4,11 @@ import os
 import re
 from distutils.dir_util import copy_tree
 
-import ext.my_functions as my
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 from tabulate import tabulate
+
+import ext.my_functions as my
 
 PRJCT_KEY = 'uw_photo/Photo_data'
 PRJCT_DIR = '/space/calico/1/users/Harsha/photo-reconstruction/'
@@ -21,11 +22,6 @@ def grab_diff_photos(ref_string=None):
     Args:
         ref_string (str): options include 'image', 'hard', 'soft'
     """
-    PRJCT_KEY = 'uw_photo/Photo_data'
-    PRJCT_DIR = '/space/calico/1/users/Harsha/photo-reconstruction/'
-    DATA_DIR = os.path.join(PRJCT_DIR, 'data', PRJCT_KEY)
-    RESULTS_DIR = os.path.join(PRJCT_DIR, 'results')
-
     subject_list = sorted(glob.glob(os.path.join(DATA_DIR, '*')))
     subject_list = [item for item in subject_list if os.path.isdir(item)]
 
@@ -37,19 +33,21 @@ def grab_diff_photos(ref_string=None):
                 ref_folder_string = f'ref_{ref_string}_skip_{skip_val}'
                 ref_folder = os.path.join(subject, ref_folder_string)
                 diff_file = glob.glob(
-                    os.path.join(ref_folder, 'propagated_labels', '*difference*'))
+                    os.path.join(ref_folder, 'propagated_labels',
+                                 '*difference*'))
 
                 if len(diff_file) == 0:
                     continue
                 src_file = diff_file[0]
 
-                print_text = os.path.basename(subject) + '_' + ref_folder_string
+                print_text = os.path.basename(
+                    subject) + '_' + ref_folder_string
                 image = Image.open(src_file)
                 draw = ImageDraw.Draw(image)
                 draw.text((image.size[0] // 2, 10),
-                        print_text,
-                        fill='white',
-                        align="right")
+                          print_text,
+                          fill='white',
+                          align="right")
                 # imagelist is the list with all image filenames
                 im_list.append(image)
 
@@ -58,11 +56,6 @@ def grab_diff_photos(ref_string=None):
                     resolution=100.0,
                     save_all=True,
                     append_images=im_list[1:])
-
-
-def grab_diff_photos_main():
-    for ref in ['hard', 'soft', 'image']:
-        grab_diff_photos(ref)
 
 
 def return_common_subjects(*args):
@@ -266,20 +259,26 @@ def put_skip_recons_in_main_dir():
 
 def recon_ref_image():
     """python version of the make target 'recon_ref_image'
-    """    
-    PRJCT_DIR= '/space/calico/1/users/Harsha/photo-reconstruction'
-    OUT_DIR=f'{PRJCT_DIR}/data/uw_photo/Photo_data'
-    DATA_DIR=f'{PRJCT_DIR}/data/uw_photo'
+    """
+    PRJCT_DIR = '/space/calico/1/users/Harsha/photo-reconstruction'
+    OUT_DIR = f'{PRJCT_DIR}/data/uw_photo/Photo_data'
+    DATA_DIR = f'{PRJCT_DIR}/data/uw_photo'
 
-    subjects = ['17-0333', '18-0086', '18-0444', '18-0817', '18-1045', '18-1132', '18-1196', '18-1274', '18-1327', '18-1343', '18-1470', '18-1680', '18-1690', '18-1704', '18-1705', '18-1724', '18-1754', '18-1913', '18-1930', '18-2056', '18-2128', '18-2259', '18-2260', '19-0019', '19-0037', '19-0100', '19-0138', '19-0148']
+    subjects = [
+        '17-0333', '18-0086', '18-0444', '18-0817', '18-1045', '18-1132',
+        '18-1196', '18-1274', '18-1327', '18-1343', '18-1470', '18-1680',
+        '18-1690', '18-1704', '18-1705', '18-1724', '18-1754', '18-1913',
+        '18-1930', '18-2056', '18-2128', '18-2259', '18-2260', '19-0019',
+        '19-0037', '19-0100', '19-0138', '19-0148'
+    ]
 
-    subjects=['19-0019']
     for skip in range(1, 5):
         for p in subjects:
             command = f'python scripts/3d_photo_reconstruction.py --input_photo_dir {DATA_DIR}/Photo_data/{p}/{p}_MATLAB --input_segmentation_dir {DATA_DIR}/Photo_data/{p}/{p}_MATLAB \
             --ref_mask {DATA_DIR}/FLAIR_Scan_Data/{p}.rotated_masked.mgz \
             --photos_of_posterior_side --allow_z_stretch --slice_thickness 4 --photo_resolution 0.1 \
             --output_directory {OUT_DIR}/{p}/ref_image_skip_{skip} --gpu 0 --skip  --multiply_factor {skip}'
+
             os.system(command)
 
 
