@@ -10,6 +10,7 @@ import numpy as np
 import scipy.io
 import scipy.ndimage
 import torch
+torch.set_default_dtype(torch.float64)
 import trimesh
 
 import ext.my_functions as my
