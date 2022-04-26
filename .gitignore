@@ -7,8 +7,9 @@ __pycache__
 
 misc
 
-data/*
-results/*
-logs/*
+data
+results
+logs
+trash
 
 !.gitkeep

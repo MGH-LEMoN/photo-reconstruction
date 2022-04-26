@@ -88,7 +88,7 @@ recon_ref_soft:
 gt_slice_idx:
 	python -c "from scripts import misc_utils; misc_utils.print_gt_slice_idx()"
 
-hcp_%: PRJCT_DIR=/space/calico/1/users/Harsha/SynthSeg/results/4harshaHCP_extracts
+hcp_%: PRJCT_DIR=/space/calico/1/users/Harsha/SynthSeg/results/4harshaHCP-skip-02
 hcp_recon:
 	for item in `ls -d $(PRJCT_DIR)/*`; do \
 		subid=`basename $$item`
@@ -99,9 +99,9 @@ hcp_recon:
 		--photos_of_posterior_side \
 		--allow_z_stretch \
 		--order_posterior_to_anterior \
-		--slice_thickness 4.2 \
+		--slice_thickness 1.4 \
 		--photo_resolution 0.7 \
-		--output_directory $$item/ref_mask_skip_6 \
+		--output_directory $$item/ref_mask_skip_02 \
 		--gpu 0
 	done
 

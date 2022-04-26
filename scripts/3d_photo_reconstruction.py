@@ -10,6 +10,7 @@ import numpy as np
 import scipy.io
 import scipy.ndimage
 import torch
+
 torch.set_default_dtype(torch.float64)
 import trimesh
 
@@ -54,10 +55,11 @@ parser.add_argument("--ref_soft_mask",
                     help="Reference soft mask",
                     default=None)
 
-parser.add_argument("--DL_synthesis",
-                    type=str,
-                    help="Model for deep learning synthesis (highly experimental!)",
-                    default=None)
+parser.add_argument(
+    "--DL_synthesis",
+    type=str,
+    help="Model for deep learning synthesis (highly experimental!)",
+    default=None)
 
 parser.add_argument(
     "--mesh_autoalign_target",
@@ -226,16 +228,18 @@ stiffness_nonlin = options.stiffness_nonlin
 if options.skip_flag:
     slice_thickness = slice_thickness * options.multiply_factor
     subject_id = os.path.basename(os.path.dirname(options.input_photo_dir[0]))
-    ref_seg = os.path.join(
-        os.getcwd(), 'data', 'uw_photo/recons/results_Henry/Results_hard',
-        subject_id, f"{subject_id}_hard_manualLabel_merged.mgz")
+    ref_seg = os.path.join(os.getcwd(), 'data',
+                           'uw_photo/recons/results_Henry/Results_hard',
+                           subject_id,
+                           f"{subject_id}_hard_manualLabel_merged.mgz")
 
     if os.path.exists(ref_seg):
         x = my.MRIread(ref_seg, im_only=True)
     else:
         sys.exit(f"Ground Truth doesn't exist for subject {subject_id}")
 
-    slice_idx = np.argmax((x > 1).sum(0).sum(0)) - 2 # subtracting 2 for padding
+    slice_idx = np.argmax(
+        (x > 1).sum(0).sum(0)) - 2  # subtracting 2 for padding
     start_idx = slice_idx % options.multiply_factor
 else:
     start_idx = 0
@@ -249,7 +253,7 @@ else:
     output_registered_reference = None
 
 if os.path.isdir(output_directory) is False:
-    os.makedirs(output_directory,exist_ok=True)
+    os.makedirs(output_directory, exist_ok=True)
 
 ########################################################
 
@@ -267,8 +271,6 @@ else:
     STEPS = [25, 25, 25]
     if FAST:
         STEPS = [10, 2, 2]
-
-
 
 LR = 1.0
 TOL = 1e-6
@@ -500,7 +502,8 @@ if ref_type != "surface":
     REF_padded = np.zeros(np.array(REF.shape) + 2 * pad)
     REF_padded[pad:-pad, pad:-pad, pad:-pad] = REF
     REFaff_padded = np.copy(REFaff)
-    REFaff_padded [:-1, -1] = REFaff_padded [:-1, -1] - np.matmul(REFaff_padded [:-1, :-1], np.array([pad, pad, pad]))
+    REFaff_padded[:-1, -1] = REFaff_padded[:-1, -1] - np.matmul(
+        REFaff_padded[:-1, :-1], np.array([pad, pad, pad]))
     REF = REF_padded
     REFaff = REFaff_padded
 
@@ -825,8 +828,9 @@ for mode_idx in range(n_modes):
                     for z in range(Nslices):
                         # M_ERODED = scipy.ndimage.binary_erosion(Ms[s][:, :, z] > .5, iterations=erode_its)
                         for c in range(3):
-                            Is[s][:, :, z, c] = my.grad2d(Is[s][:, :, z,
-                                                                c])  # * M_ERODED
+                            Is[s][:, :, z,
+                                  c] = my.grad2d(Is[s][:, :, z,
+                                                       c])  # * M_ERODED
                     if ref_type == "surface":
                         Is[s] = Is[s] / 255.0  # Otherwise loss goes bananas...
             else:
@@ -840,12 +844,16 @@ for mode_idx in range(n_modes):
                 os.system('rm -rf ' + tempdir2)
                 os.mkdir(tempdir2)
                 for z in range(Nslices):
-                    cv2.imwrite(tempdir + str(z) + '.png', np.mean(Is[-1][:, :, z], axis=-1).astype('B'))
-                scriptdir = os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[0])))
-                os.system(scriptdir + '/run_synthesis.sh ' + tempdir + ' ' + tempdir2 + ' ' + DL_synthesis_model)
+                    cv2.imwrite(tempdir + str(z) + '.png',
+                                np.mean(Is[-1][:, :, z], axis=-1).astype('B'))
+                scriptdir = os.path.dirname(
+                    os.path.dirname(os.path.abspath(sys.argv[0])))
+                os.system(scriptdir + '/run_synthesis.sh ' + tempdir + ' ' +
+                          tempdir2 + ' ' + DL_synthesis_model)
                 for z in range(Nslices):
-                    aux = cv2.imread(tempdir2 + str(z) + '_SynthSR.png').astype(float)
-                    aux[Is[s][:, :, z, :] ==0] = 0
+                    aux = cv2.imread(tempdir2 + str(z) +
+                                     '_SynthSR.png').astype(float)
+                    aux[Is[s][:, :, z, :] == 0] = 0
                     Is[s][:, :, z, :] = aux
                 os.system('rm -rf ' + tempdir)
                 os.system('rm -rf ' + tempdir2)
@@ -860,7 +868,7 @@ for mode_idx in range(n_modes):
                             interpolation=cv2.INTER_AREA,
                         )
                         Isl[Ms[s][:, :, z] == 0] = 0
-                        Is[s][:,:,z,:] = Isl
+                        Is[s][:, :, z, :] = Isl
 
         else:
             ref_type_iteration = ref_type
@@ -936,6 +944,8 @@ for mode_idx in range(n_modes):
             k_nonlinear=K_NONLINEAR,
         )
 
+        latest_valid_params = model.state_dict()
+
         if FAST:
             optimizer = torch.optim.SGD(model.parameters(), lr=10 * LR)
         else:
@@ -945,34 +955,46 @@ for mode_idx in range(n_modes):
 
         loss_old = 1e10
         for epoch in range(STEPS[res]):
-
-            # Compute loss with forward pass
-            loss = model()[0]
-
-            # # backpropagate and optimize with GD
-            # optimizer.zero_grad()
-            # loss.backward()
-            # optimizer.step()
-
-            # optimize with BFGS
-            def closure():
-                optimizer.zero_grad()
-                loss = model()[0]
-                loss.backward()
-
-                return loss
-
-            optimizer.step(closure)
+            # # Compute loss with forward pass
+            loss = model()[0].cpu().detach().numpy()
 
             # print step info
-            loss = loss.cpu().detach().numpy()
-            print("   Step %d, loss = %.6f" % (epoch + 1, loss), flush=True)
+            if loss == 0 or np.isnan(loss):
+                print("   Step %d, loss = %.6f -> resetting optimizer" %
+                      (epoch + 1, loss),
+                      flush=True)
+                model.load_state_dict(latest_valid_params)
+
+                loss_after_reset = (model()[0]).cpu().detach().numpy()
+                print(loss_after_reset)
+
+                if FAST:
+                    optimizer = torch.optim.SGD(model.parameters(), lr=10 * LR)
+                else:
+                    optimizer = torch.optim.LBFGS(
+                        model.parameters(),
+                        lr=LR,
+                        line_search_fn="strong_wolfe")
+                continue
+            else:
+                print("   Step %d, loss = %.6f" % (epoch + 1, loss),
+                      flush=True)
+                latest_valid_params = model.state_dict()
 
             if (loss_old - loss) < TOL:
                 print("   Decrease in loss below tolerance limit")
                 break
             else:
                 loss_old = loss
+
+            # optimize with BFGS
+            def closure():
+                optimizer.zero_grad()
+                loss = model()[0]
+                loss.backward()
+                return loss
+
+            optimizer.step(closure)
 
         # Retrieve model parameters
         t = model.t.cpu().detach().numpy()
@@ -1001,7 +1023,8 @@ for mode_idx in range(n_modes):
                 )
                 Rt = Rt.cpu().detach().numpy()
             else:
-                _, photo_resampled, photo_aff, mri_aff_combined, _, TvoxPhotos = model()
+                _, photo_resampled, photo_aff, mri_aff_combined, _, TvoxPhotos = model(
+                )
 
             TvoxPhotos = TvoxPhotos.cpu().detach().numpy()
             mri_aff_combined = mri_aff_combined.cpu().detach().numpy()

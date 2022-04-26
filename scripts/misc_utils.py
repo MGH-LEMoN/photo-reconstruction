@@ -283,6 +283,32 @@ def recon_ref_image():
             os.system(command)
 
 
+def hcp_recon():
+    """python version of the make target 'hcp_recon'
+    """
+    PRJCT_DIR = '/space/calico/1/users/Harsha/SynthSeg/results/4harshaHCP-skip-10'
+    subjects = os.listdir(PRJCT_DIR)
+	
+    for subject in subjects:
+        input_dir = os.path.join(PRJCT_DIR, subject)
+        input_photo_dir = os.path.join(input_dir, 'photo_dir')
+        ref_mask = os.path.join(input_dir, f'{subject}.mri.mask.mgz')
+        command = f'sbatch --job-name=$$subid submit.sh scripts/3d_photo_reconstruction.py \
+		--input_photo_dir {input_photo_dir} \
+		--input_segmentation_dir {input_photo_dir} \
+		--ref_mask {ref_mask} \
+		--photos_of_posterior_side \
+		--allow_z_stretch \
+		--order_posterior_to_anterior \
+		--slice_thickness 8.4 \
+		--photo_resolution 0.7 \
+		--output_directory {input_dir} \
+		--gpu 0'
+
+        os.system(command)
+
+    pass
+
 if __name__ == '__main__':
     grab_diff_photos()
     # put_skip_recons_in_main_dir()
