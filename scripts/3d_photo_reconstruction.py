@@ -165,7 +165,7 @@ sys.argv = ['scripts/3d_photo_reconstruction.py',
                '--photos_of_posterior_side', '--allow_z_stretch',
                 '--order_posterior_to_anterior',
                  '--slice_thickness', HOWTHICK, '--photo_resolution', '0.7',
-                  '--output_directory', f'{SID}-skip-{SKIPVAL}',
+                  '--output_directory', f'/cluster/scratch/friday/for_eugenio/4harshaHCP-skip-{SKIPVAL}/{SID}-skip-{SKIPVAL}',
                    '--gpu', '0']
 
 
