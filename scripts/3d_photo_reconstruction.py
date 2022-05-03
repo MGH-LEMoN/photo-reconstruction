@@ -1,5 +1,6 @@
 # Imports
 import argparse
+import copy
 import glob
 import os
 import sys
@@ -147,6 +148,25 @@ parser.add_argument("--multiply_factor",
                     help="Multiplication Factor for thickness",
                     default=1)
 
+# SID = '100206' # for 16 (good case)
+# # SID = '683256' # for 16 (bad case)
+# SID = '149741'
+# SKIPVAL = '16' # for 16
+# HOWTHICK = '11.2' # for 16
+
+# # SID = '100206' # for 2 (good case)
+# SID = '994273' # for 2 (fail case)
+# SKIPVAL = '02' # for 2
+# HOWTHICK = '1.4' # for 2
+# sys.argv = ['scripts/3d_photo_reconstruction.py',
+#             '--input_photo_dir', f'/space/calico/1/users/Harsha/SynthSeg/results/4harshaHCP-skip-{SKIPVAL}/subject_{SID}/photo_dir',
+#              '--input_segmentation_dir', f'/space/calico/1/users/Harsha/SynthSeg/results/4harshaHCP-skip-{SKIPVAL}/subject_{SID}/photo_dir',
+#               '--ref_mask', f'/space/calico/1/users/Harsha/SynthSeg/results/4harshaHCP-skip-{SKIPVAL}/subject_{SID}/subject_{SID}.mri.mask.mgz',
+#                '--photos_of_posterior_side', '--allow_z_stretch',
+#                 '--order_posterior_to_anterior',
+#                  '--slice_thickness', HOWTHICK, '--photo_resolution', '0.7',
+#                   '--output_directory', f'/cluster/scratch/friday/for_harsha/{SID}-skip-{SKIPVAL}-mymod-yb',
+#                    '--gpu', '0']
 options = parser.parse_args()
 
 ########################################################
@@ -944,7 +964,7 @@ for mode_idx in range(n_modes):
             k_nonlinear=K_NONLINEAR,
         )
 
-        latest_valid_params = model.state_dict()
+        last_valid_parameters = copy.deepcopy(model.state_dict())
 
         if FAST:
             optimizer = torch.optim.SGD(model.parameters(), lr=10 * LR)
@@ -955,7 +975,8 @@ for mode_idx in range(n_modes):
 
         loss_old = 1e10
         for epoch in range(STEPS[res]):
-            # # Compute loss with forward pass
+
+            # Compute loss with forward pass
             loss = model()[0].cpu().detach().numpy()
 
             # print step info
@@ -963,9 +984,9 @@ for mode_idx in range(n_modes):
                 print("   Step %d, loss = %.6f -> resetting optimizer" %
                       (epoch + 1, loss),
                       flush=True)
-                model.load_state_dict(latest_valid_params)
+                model.load_state_dict(last_valid_parameters)
 
-                loss_after_reset = (model()[0]).cpu().detach().numpy()
+                loss_after_reset = model()[0].cpu().detach().numpy()
                 print(loss_after_reset)
 
                 if FAST:
@@ -973,19 +994,18 @@ for mode_idx in range(n_modes):
                 else:
                     optimizer = torch.optim.LBFGS(
                         model.parameters(),
-                        lr=LR,
+                        lr=0.5 * LR,
                         line_search_fn="strong_wolfe")
-                continue
             else:
                 print("   Step %d, loss = %.6f" % (epoch + 1, loss),
                       flush=True)
-                latest_valid_params = model.state_dict()
+                last_valid_parameters = copy.deepcopy(model.state_dict())
 
-            if (loss_old - loss) < TOL:
-                print("   Decrease in loss below tolerance limit")
-                break
-            else:
-                loss_old = loss
+                if (loss_old - loss) < TOL:
+                    print("   Decrease in loss below tolerance limit")
+                    break
+                else:
+                    loss_old = loss
 
             # optimize with BFGS
             def closure():
