@@ -149,24 +149,26 @@ parser.add_argument("--multiply_factor",
                     default=1)
 
 # SID = '100206' # for 16 (good case)
-# # SID = '683256' # for 16 (bad case)
-# SID = '149741'
+# SID = '683256' # for 16 (bad case)
 # SKIPVAL = '16' # for 16
 # HOWTHICK = '11.2' # for 16
 
-# # SID = '100206' # for 2 (good case)
-# SID = '994273' # for 2 (fail case)
-# SKIPVAL = '02' # for 2
-# HOWTHICK = '1.4' # for 2
-# sys.argv = ['scripts/3d_photo_reconstruction.py',
-#             '--input_photo_dir', f'/space/calico/1/users/Harsha/SynthSeg/results/4harshaHCP-skip-{SKIPVAL}/subject_{SID}/photo_dir',
-#              '--input_segmentation_dir', f'/space/calico/1/users/Harsha/SynthSeg/results/4harshaHCP-skip-{SKIPVAL}/subject_{SID}/photo_dir',
-#               '--ref_mask', f'/space/calico/1/users/Harsha/SynthSeg/results/4harshaHCP-skip-{SKIPVAL}/subject_{SID}/subject_{SID}.mri.mask.mgz',
-#                '--photos_of_posterior_side', '--allow_z_stretch',
-#                 '--order_posterior_to_anterior',
-#                  '--slice_thickness', HOWTHICK, '--photo_resolution', '0.7',
-#                   '--output_directory', f'/cluster/scratch/friday/for_harsha/{SID}-skip-{SKIPVAL}-mymod-yb',
-#                    '--gpu', '0']
+SID = '100206' # for 2 (good case)
+SID = '994273' # for 2 (fail case)
+SKIPVAL = '02' # for 2
+HOWTHICK = '1.4' # for 2
+
+sys.argv = ['scripts/3d_photo_reconstruction.py',
+            '--input_photo_dir', f'/cluster/scratch/friday/for_eugenio/4harshaHCP-skip-{SKIPVAL}/subject_{SID}/photo_dir',
+             '--input_segmentation_dir', f'/cluster/scratch/friday/for_eugenio/4harshaHCP-skip-{SKIPVAL}/subject_{SID}/photo_dir',
+              '--ref_mask', f'/cluster/scratch/friday/for_eugenio/4harshaHCP-skip-{SKIPVAL}/subject_{SID}/subject_{SID}.mri.mask.mgz',
+               '--photos_of_posterior_side', '--allow_z_stretch',
+                '--order_posterior_to_anterior',
+                 '--slice_thickness', HOWTHICK, '--photo_resolution', '0.7',
+                  '--output_directory', f'{SID}-skip-{SKIPVAL}',
+                   '--gpu', '0']
+
+
 options = parser.parse_args()
 
 ########################################################
