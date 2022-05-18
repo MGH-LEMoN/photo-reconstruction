@@ -88,11 +88,12 @@ recon_ref_soft:
 gt_slice_idx:
 	python -c "from scripts import misc_utils; misc_utils.print_gt_slice_idx()"
 
-hcp_%: SKIP=14
-hcp_%: THICK=9.8
+hcp_%: SKIP=12
+hcp_%: THICK=8.4
 hcp_%: PRJCT_DIR=/space/calico/1/users/Harsha/SynthSeg/results/hcp-results/4harshaHCP-skip-$(SKIP)-r3
 hcp_recon:
-	for item in `ls -d $(PRJCT_DIR)/*`; do \
+	COUNTER=0
+	for item in `ls -d $(PRJCT_DIR)/*`; do
 		subid=`basename $$item`
 		sbatch --job-name=$$subid submit.sh scripts/3d_photo_reconstruction.py \
 		--input_photo_dir $$item/photo_dir \
@@ -105,6 +106,10 @@ hcp_recon:
 		--photo_resolution 0.7 \
 		--output_directory $$item/ref_mask_skip_$(SKIP) \
 		--gpu 0
+		let COUNTER=COUNTER+1
+		@if (( $$COUNTER % 50 == 0 )); then\
+    		sleep 5m;\
+		fi
 	done
 
 hcp_test:
