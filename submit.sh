@@ -6,9 +6,9 @@
 #SBATCH --gpus=1
 ##SBATCH --cpus-per-task=1
 ##SBATCH --mem=32G
-#SBATCH --time=0-01:30:00
-#SBATCH --output="./logs/hcp-20220418/skip-02/%x.out"
-#SBATCH --error="./logs/hcp-20220418/skip-02/%x.err"
+#SBATCH --time=0-00:30:00
+#SBATCH --output="./logs/hcp-recon/skip-14-r3/%x.out"
+#SBATCH --error="./logs/hcp-recon/skip-14-r3/%x.err"
 #SBATCH --mail-user=hvgazula@umich.edu
 #SBATCH --mail-type=FAIL
 
