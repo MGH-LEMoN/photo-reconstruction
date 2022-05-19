@@ -1,6 +1,5 @@
 # Imports
 import argparse
-import copy
 import glob
 import os
 import sys
@@ -17,6 +16,10 @@ import trimesh
 
 import ext.my_functions as my
 import photo_reconstruction.versatile_reg_network as PRnets
+from ext.utils import get_git_revision_short_hash, seed_all
+
+seed_all(0)
+print(f'Git Commit Hash: {get_git_revision_short_hash()}')
 
 ########################################################
 # Parse arguments
@@ -147,27 +150,6 @@ parser.add_argument("--multiply_factor",
                     type=int,
                     help="Multiplication Factor for thickness",
                     default=1)
-
-# SID = '100206' # for 16 (good case)
-# SID = '683256' # for 16 (bad case)
-# SKIPVAL = '16' # for 16
-# HOWTHICK = '11.2' # for 16
-
-SID = '100206' # for 2 (good case)
-SID = '994273' # for 2 (fail case)
-SKIPVAL = '02' # for 2
-HOWTHICK = '1.4' # for 2
-
-sys.argv = ['scripts/3d_photo_reconstruction.py',
-            '--input_photo_dir', f'/cluster/scratch/friday/for_eugenio/4harshaHCP-skip-{SKIPVAL}/subject_{SID}/photo_dir',
-             '--input_segmentation_dir', f'/cluster/scratch/friday/for_eugenio/4harshaHCP-skip-{SKIPVAL}/subject_{SID}/photo_dir',
-              '--ref_mask', f'/cluster/scratch/friday/for_eugenio/4harshaHCP-skip-{SKIPVAL}/subject_{SID}/subject_{SID}.mri.mask.mgz',
-               '--photos_of_posterior_side', '--allow_z_stretch',
-                '--order_posterior_to_anterior',
-                 '--slice_thickness', HOWTHICK, '--photo_resolution', '0.7',
-                  '--output_directory', f'/cluster/scratch/friday/for_eugenio/4harshaHCP-skip-{SKIPVAL}/{SID}-skip-{SKIPVAL}',
-                   '--gpu', '0']
-
 
 options = parser.parse_args()
 
@@ -966,8 +948,6 @@ for mode_idx in range(n_modes):
             k_nonlinear=K_NONLINEAR,
         )
 
-        last_valid_parameters = copy.deepcopy(model.state_dict())
-
         if FAST:
             optimizer = torch.optim.SGD(model.parameters(), lr=10 * LR)
         else:
@@ -979,44 +959,32 @@ for mode_idx in range(n_modes):
         for epoch in range(STEPS[res]):
 
             # Compute loss with forward pass
-            loss = model()[0].cpu().detach().numpy()
+            loss = model()[0]
 
-            # print step info
-            if loss == 0 or np.isnan(loss):
-                print("   Step %d, loss = %.6f -> resetting optimizer" %
-                      (epoch + 1, loss),
-                      flush=True)
-                model.load_state_dict(last_valid_parameters)
-
-                loss_after_reset = model()[0].cpu().detach().numpy()
-                print(loss_after_reset)
-
-                if FAST:
-                    optimizer = torch.optim.SGD(model.parameters(), lr=10 * LR)
-                else:
-                    optimizer = torch.optim.LBFGS(
-                        model.parameters(),
-                        lr=0.5 * LR,
-                        line_search_fn="strong_wolfe")
-            else:
-                print("   Step %d, loss = %.6f" % (epoch + 1, loss),
-                      flush=True)
-                last_valid_parameters = copy.deepcopy(model.state_dict())
-
-                if (loss_old - loss) < TOL:
-                    print("   Decrease in loss below tolerance limit")
-                    break
-                else:
-                    loss_old = loss
+            # # backpropagate and optimize with GD
+            # optimizer.zero_grad()
+            # loss.backward()
+            # optimizer.step()
 
             # optimize with BFGS
             def closure():
                 optimizer.zero_grad()
                 loss = model()[0]
                 loss.backward()
+
                 return loss
 
             optimizer.step(closure)
+
+            # print step info
+            loss = loss.cpu().detach().numpy()
+            print("   Step %d, loss = %.6f" % (epoch + 1, loss), flush=True)
+
+            if (loss_old - loss) < TOL:
+                print("   Decrease in loss below tolerance limit")
+                break
+            else:
+                loss_old = loss
 
         # Retrieve model parameters
         t = model.t.cpu().detach().numpy()
