@@ -4,13 +4,10 @@ import subprocess
 import numpy
 import torch
 
-# https://discuss.pytorch.org/t/reproducibility-with-all-the-bells-and-whistles/81097
-
 
 def seed_all(seed):
-    if not seed:
-        seed = 0
-
+    # https://discuss.pytorch.org/t/reproducibility-with-all-the-bells-and-whistles/81097
+    seed = 0 if not seed else seed
     print("[ Using Seed : ", seed, " ]")
 
     torch.manual_seed(seed)

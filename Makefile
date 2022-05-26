@@ -88,9 +88,9 @@ recon_ref_soft:
 gt_slice_idx:
 	python -c "from scripts import misc_utils; misc_utils.print_gt_slice_idx()"
 
-hcp_%: SKIP=12
-hcp_%: THICK=8.4
-hcp_%: PRJCT_DIR=/space/calico/1/users/Harsha/SynthSeg/results/hcp-results/4harshaHCP-skip-$(SKIP)-r3
+hcp_%: SKIP=06
+hcp_%: THICK=4.2
+hcp_%: PRJCT_DIR=/space/calico/1/users/Harsha/SynthSeg/results/hcp-results/4harshaHCP-skip-$(SKIP)-r1
 hcp_recon:
 	COUNTER=0
 	for item in `ls -d $(PRJCT_DIR)/*`; do
@@ -107,19 +107,11 @@ hcp_recon:
 		--output_directory $$item/ref_mask_skip_$(SKIP) \
 		--gpu 0
 		let COUNTER=COUNTER+1
-		@if (( $$COUNTER % 50 == 0 )); then\
-    		sleep 5m;\
+		@if (( $$COUNTER % 100 == 0 )); then\
+    		sleep 15m;\
 		fi
 	done
 
-hcp_test:
-	for item in `ls -d $(PRJCT_DIR)/*`; do \
-		subid=`basename $$item`
-		IFS='_'
-		read -r a b <<< $$subid
-		echo $$b
-		IFS=' '
-	done
 
 propagate_gt: SKIP_SLICE := $(shell seq 1 4)
 propagate_gt: REF_DIR=/space/calico/1/users/Harsha/photo-reconstruction/data/uw_photo/recons/results_Henry/Results_hard
@@ -148,3 +140,48 @@ test-mlsc:
 # Notice the use \" in this compared to the mlsc command
 test-launchpad:
 	pbsubmit -q matlab -n 2 -O fact1.out -E fact1.err -m hvgazula@umich.edu -e -c "matlab -nodisplay -nosplash -nojvm -r \"cd('misc'); fact('5')\""
+
+
+# this is exclusvely for r2 cases for the time being
+hcpcpu_%: SKIP=10
+hcpcpu_%: THICK=7.0
+hcpcpu_%: PRJCT_DIR=/space/calico/1/users/Harsha/SynthSeg/results/hcp-results/4harshaHCP-skip-$(SKIP)-r1
+hcpcpu_recon:
+	COUNTER=0
+	for item in `ls -d $(PRJCT_DIR)/*`; do
+		subid=`basename $$item`
+		sbatch --job-name=$$subid submit-cpu.sh scripts/3d_photo_reconstruction.py \
+		--input_photo_dir $$item/photo_dir \
+		--input_segmentation_dir $$item/photo_dir \
+		--ref_mask $$item/$$subid.mri.mask.mgz \
+		--photos_of_posterior_side \
+		--allow_z_stretch \
+		--order_posterior_to_anterior \
+		--slice_thickness $(THICK) \
+		--photo_resolution 0.7 \
+		--output_directory $$item/ref_mask_skip_$(SKIP)
+		let COUNTER=COUNTER+1
+		@if (( $$COUNTER % 100 == 0 )); then\
+    		sleep 0;\
+		fi
+	done
+
+hcpcpu_fail:
+	for item in `find ./logs/hcp-recon/skip-08-r2 -name "*.err" ! -size 0  | sort`; do \
+		subid=`basename $$item`
+		IFS='_.'
+		read -r a subid c <<< $$subid
+		IFS=' '
+		sbatch --job-name=subject_$$subid submit-cpu.sh scripts/3d_photo_reconstruction.py \
+		--input_photo_dir $(PRJCT_DIR)/subject_$$subid/photo_dir \
+		--input_segmentation_dir $(PRJCT_DIR)/subject_$$subid/photo_dir \
+		--ref_mask $(PRJCT_DIR)/subject_$$subid/subject_$$subid.mri.mask.mgz \
+		--photos_of_posterior_side \
+		--allow_z_stretch \
+		--order_posterior_to_anterior \
+		--slice_thickness $(THICK) \
+		--photo_resolution 0.7 \
+		--output_directory $(PRJCT_DIR)/subject_$$subid/ref_mask_skip_$(SKIP) \
+		--gpu 0
+	done
+	

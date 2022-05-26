@@ -352,7 +352,7 @@ def hcp_recon(skip=6):
 def hcp_recon_group(skip=6, n_jobs=5):
     """python version of the make target 'hcp_recon' to group multiple reconstructions at once"""
     PRJCT_DIR = (
-        f"/space/calico/1/users/Harsha/SynthSeg/results/4harshaHCP-skip-{skip:02d}-r3"
+        f"/space/calico/1/users/Harsha/SynthSeg/results/hcp-results/4harshaHCP-skip-{skip:02d}-r3"
     )
     subjects = sorted(os.listdir(PRJCT_DIR))
     LOG_DIR = f"/space/calico/1/users/Harsha/photo-reconstruction/logs/hcp-recon/test-skip-{skip:02d}-r3"
@@ -365,6 +365,7 @@ def hcp_recon_group(skip=6, n_jobs=5):
     for idx, ptr in enumerate(range(0, len(subjects) - n_jobs + 1, n_jobs)):
         script_file = os.path.join(os.getcwd(), "submit_scripts",
                                    f"submit_group_{idx:02d}.sh")
+        os.makedirs(os.path.dirname(script_file), exist_ok=True)
         batch = subjects[ptr:ptr + n_jobs]
 
         all_commands = []
@@ -382,7 +383,7 @@ def hcp_recon_group(skip=6, n_jobs=5):
             --order_posterior_to_anterior \
             --slice_thickness {0.7*skip:.1f} \
             --photo_resolution 0.7 \
-            --output_directory {input_dir}\
+            --output_directory /tmp/\
             --gpu 0 > {log_file} &"
 
             command = " ".join(command.split())
@@ -394,7 +395,7 @@ def hcp_recon_group(skip=6, n_jobs=5):
                 #SBATCH --nodes=1
                 #SBATCH --ntasks=5
                 #SBATCH --gpus=1
-                #SBATCH --time=0-00:30:00
+                #SBATCH --time=0-01:30:00
                 #SBATCH --output="./logs/hcp-recon/test/%x.out"
                 #SBATCH --error="./logs/hcp-recon/test/%x.err"
                 #SBATCH --mail-user=hvgazula@umich.edu
@@ -429,4 +430,4 @@ if __name__ == "__main__":
     # put_skip_recons_in_main_dir()
     # print_uw_gt_map()
     # get_hcp_subject_list()
-    hcp_recon_group(skip=12, group_size=5)
+    hcp_recon_group(skip=12, n_jobs=5)
