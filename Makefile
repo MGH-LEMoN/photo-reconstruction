@@ -74,18 +74,16 @@ uw_gt_propagate:
 gt_slice_idx:
 	python -c "from scripts import misc_utils; misc_utils.print_gt_slice_idx()"
 
-hcp_%: SKIP=16
-hcp_%: THICK=11.2
-hcp_%: JITTER=$(shell seq 3 -1 0)
+hcp_%: SKIP=04
+hcp_%: THICK=2.8
+hcp_%: JITTER=$(shell seq 3 -1 1)
 hcp_recon:
 	COUNTER=0
 	for jitter in $(JITTER); do \
-		PRJCT_DIR=/space/calico/1/users/Harsha/SynthSeg/results/hcp-results-20220601/4harshaHCP-skip-$(SKIP)-r$$jitter
+		PRJCT_DIR=/space/calico/1/users/Harsha/SynthSeg/results/hcp-results-20220615/4harshaHCP-skip-$(SKIP)-r$$jitter
 		for item in `ls -d $$PRJCT_DIR/*`; do
 			subid=`basename $$item`
-			if [ ! -d $$item/ref_mask_skip_$(SKIP) ]
-			then
-				echo sbatch --job-name=skip-$(SKIP)-r$$jitter/$$subid submit.sh scripts/3d_photo_reconstruction.py \
+			sbatch --job-name=skip-$(SKIP)-r$$jitter/$$subid submit.sh scripts/3d_photo_reconstruction.py \
 				--input_photo_dir $$item/photo_dir \
 				--input_segmentation_dir $$item/photo_dir \
 				--ref_mask $$item/$$subid.mri.mask.mgz \
@@ -95,13 +93,55 @@ hcp_recon:
 				--slice_thickness $(THICK) \
 				--photo_resolution 0.7 \
 				--output_directory $$item/ref_mask_skip_$(SKIP) \
-				--gpu 0; \
-			fi
+				--gpu 0;
 			let COUNTER=COUNTER+1
 			@if (( $$COUNTER % 100 == 0 )); then\
-				sleep 5m;\
+				sleep 15m;\
 			fi
 		done; \
+	done
+
+## run recon given a file with failed subjects
+hcp_fail1:
+		while IFS= read -r subid
+		do
+			for jitter in $(JITTER); do \
+				PRJCT_DIR=/space/calico/1/users/Harsha/SynthSeg/results/hcp-results-20220613/4harshaHCP-skip-$(SKIP)-r$$jitter
+				sbatch --job-name=skip-$(SKIP)-r$$jitter/subject_$$subid submit.sh scripts/3d_photo_reconstruction.py \
+				--input_photo_dir $$PRJCT_DIR/subject_$$subid/photo_dir \
+				--input_segmentation_dir $$PRJCT_DIR/subject_$$subid/photo_dir \
+				--ref_mask $$PRJCT_DIR/subject_$$subid/subject_$$subid.mri.mask.mgz \
+				--photos_of_posterior_side \
+				--allow_z_stretch \
+				--order_posterior_to_anterior \
+				--slice_thickness $(THICK) \
+				--photo_resolution 0.7 \
+				--output_directory $$PRJCT_DIR/subject_$$subid/ref_mask_skip_$(SKIP) \
+				--gpu 0
+			done;
+		done < /space/calico/1/users/Harsha/SynthSeg/test_csv.csv
+
+hcp_%: SKIP=02
+hcp_%: THICK=1.4
+hcp_%: JITTER=1
+hcp_fail_new:
+	PRJCT_DIR=/space/calico/1/users/Harsha/SynthSeg/results/hcp-results-20220615/4harshaHCP-skip-$(SKIP)-r$(JITTER)
+	for item in `find ./logs/hcp-recon-20220615/skip-$(SKIP)-r$(JITTER)/ -name "*.out" -exec grep -L -e "freeview" {} +`; do \
+		subid=`basename $$item`
+		IFS='_.'
+		read -r a subid c <<< $$subid
+		IFS=' '
+		sbatch --job-name=skip-$(SKIP)-r$(JITTER)/subject_$$subid submit.sh scripts/3d_photo_reconstruction.py \
+				--input_photo_dir $$PRJCT_DIR/subject_$$subid/photo_dir \
+				--input_segmentation_dir $$PRJCT_DIR/subject_$$subid/photo_dir \
+				--ref_mask $$PRJCT_DIR/subject_$$subid/subject_$$subid.mri.mask.mgz \
+				--photos_of_posterior_side \
+				--allow_z_stretch \
+				--order_posterior_to_anterior \
+				--slice_thickness $(THICK) \
+				--photo_resolution 0.7 \
+				--output_directory $$PRJCT_DIR/subject_$$subid/ref_mask_skip_$(SKIP) \
+				--gpu 0
 	done
 
 propagate_gt: SKIP_SLICE := $(shell seq 1 4)
@@ -174,3 +214,4 @@ hcpcpu_fail:
 		--output_directory $(PRJCT_DIR)/subject_$$subid/ref_mask_skip_$(SKIP) \
 		--gpu 0
 	done
+
