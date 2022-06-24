@@ -10,16 +10,22 @@ import numpy as np
 import scipy.io
 import scipy.ndimage
 import torch
+
+torch.set_default_dtype(torch.float64)
 import trimesh
 
 import ext.my_functions as my
 import photo_reconstruction.versatile_reg_network as PRnets
+from ext.utils import get_git_revision_short_hash, seed_all
+
+seed_all(0)
+print(f"Git Commit Hash: {get_git_revision_short_hash()}")
 
 ########################################################
 # Parse arguments
 parser = argparse.ArgumentParser(
-    description=
-    "Code for 3D photo reconstruction (Tregidgo, ..., & Iglesias, MICCAI 2020")
+    description="Code for 3D photo reconstruction (Tregidgo, ..., & Iglesias, MICCAI 2020"
+)
 
 parser.add_argument(
     "--input_photo_dir",
@@ -36,27 +42,21 @@ parser.add_argument(
     required=True,
 )
 
-parser.add_argument("--ref_mask",
-                    type=str,
-                    help="Reference binary mask",
-                    default=None)
-parser.add_argument("--ref_surface",
-                    type=str,
-                    help="Reference surface file",
-                    default=None)
-parser.add_argument("--ref_image",
-                    type=str,
-                    help="Reference image file",
-                    default=None)
-parser.add_argument("--ref_soft_mask",
-                    type=str,
-                    help="Reference soft mask",
-                    default=None)
+parser.add_argument("--ref_mask", type=str, help="Reference binary mask", default=None)
+parser.add_argument(
+    "--ref_surface", type=str, help="Reference surface file", default=None
+)
+parser.add_argument("--ref_image", type=str, help="Reference image file", default=None)
+parser.add_argument(
+    "--ref_soft_mask", type=str, help="Reference soft mask", default=None
+)
 
-parser.add_argument("--DL_synthesis",
-                    type=str,
-                    help="Model for deep learning synthesis (highly experimental!)",
-                    default=None)
+parser.add_argument(
+    "--DL_synthesis",
+    type=str,
+    help="Model for deep learning synthesis (highly experimental!)",
+    default=None,
+)
 
 parser.add_argument(
     "--mesh_autoalign_target",
@@ -68,8 +68,7 @@ parser.add_argument(
     "--mesh_manually_oriented",
     dest="mesh_manually_oriented",
     action="store_true",
-    help=
-    "Use this flag if you manually oriented the filled mesh (please see manual)",
+    help="Use this flag if you manually oriented the filled mesh (please see manual)",
 )
 parser.set_defaults(mesh_manually_oriented=False)
 
@@ -77,8 +76,7 @@ parser.add_argument(
     "--photos_of_posterior_side",
     dest="posterior_side",
     action="store_true",
-    help=
-    "Use when photos are taken of posterior side of slabs (default is anterior side)",
+    help="Use when photos are taken of posterior side of slabs (default is anterior side)",
 )
 parser.set_defaults(posterior_side=False)
 
@@ -86,8 +84,7 @@ parser.add_argument(
     "--order_posterior_to_anterior",
     dest="posterior_to_anterior",
     action="store_true",
-    help=
-    "Use when photos are ordered from posterior to anterior (default is anterior to posterior)",
+    help="Use when photos are ordered from posterior to anterior (default is anterior to posterior)",
 )
 parser.set_defaults(posterior_to_anterior=False)
 
@@ -95,15 +92,14 @@ parser.add_argument(
     "--allow_z_stretch",
     dest="allow_z_stretch",
     action="store_true",
-    help="Use to adjust the slice thickness to best match the reference." +
-    " You should probably *never* use this with soft references",
+    help="Use to adjust the slice thickness to best match the reference."
+    + " You should probably *never* use this with soft references",
 )
 parser.set_defaults(allow_z_stretch=False)
 
-parser.add_argument("--slice_thickness",
-                    type=float,
-                    help="Slice thickness in mm",
-                    required=True)
+parser.add_argument(
+    "--slice_thickness", type=float, help="Slice thickness in mm", required=True
+)
 parser.add_argument(
     "--photo_resolution",
     type=float,
@@ -114,8 +110,8 @@ parser.add_argument(
     "--n_cp_nonlin",
     type=int,
     help="number of control points for within slice nonlinear deformation of "
-    + " the photos, along largest dimension of image. You should probably " +
-    " *never* use this with soft references",
+    + " the photos, along largest dimension of image. You should probably "
+    + " *never* use this with soft references",
     default=0,
 )
 
@@ -133,16 +129,12 @@ parser.add_argument(
     required=True,
 )
 
-parser.add_argument("--gpu",
-                    type=int,
-                    help="Index of GPU to use",
-                    default=None)
+parser.add_argument("--gpu", type=int, help="Index of GPU to use", default=None)
 
 parser.add_argument("--skip", action="store_true", dest="skip_flag")
-parser.add_argument("--multiply_factor",
-                    type=int,
-                    help="Multiplication Factor for thickness",
-                    default=1)
+parser.add_argument(
+    "--multiply_factor", type=int, help="Multiplication Factor for thickness", default=1
+)
 
 options = parser.parse_args()
 
@@ -162,17 +154,23 @@ else:
         print("Using GPU device " + str(options.gpu))
         device = torch.device("cuda:0")
     else:
-        print("Tried to use GPU device " + str(options.gpu) +
-              " but failed; using CPU instead")
+        print(
+            "Tried to use GPU device "
+            + str(options.gpu)
+            + " but failed; using CPU instead"
+        )
         device = torch.device("cpu")
 
 ########################################################
 # Input data
 
 # First, make sure that you specify one and only one reference!
-n_refs = ((options.ref_mask is not None) +
-          (options.ref_soft_mask is not None) +
-          (options.ref_surface is not None) + (options.ref_image is not None))
+n_refs = (
+    (options.ref_mask is not None)
+    + (options.ref_soft_mask is not None)
+    + (options.ref_surface is not None)
+    + (options.ref_image is not None)
+)
 if n_refs != 1:
     raise Exception(
         "You should provide 1 and only 1 reference: binary mask, soft mask, surface, or image"
@@ -204,8 +202,9 @@ input_photo_dir = input_photo_dir + "/"
 
 input_segmentation_dir = options.input_segmentation_dir[0]
 for i in range(len(options.input_segmentation_dir) - 1):
-    input_segmentation_dir = (input_segmentation_dir + " " +
-                              options.input_segmentation_dir[i + 1])
+    input_segmentation_dir = (
+        input_segmentation_dir + " " + options.input_segmentation_dir[i + 1]
+    )
 input_segmentation_dir = input_segmentation_dir + "/"
 
 reverse_lr = options.posterior_side
@@ -226,15 +225,19 @@ if options.skip_flag:
     slice_thickness = slice_thickness * options.multiply_factor
     subject_id = os.path.basename(os.path.dirname(options.input_photo_dir[0]))
     ref_seg = os.path.join(
-        os.getcwd(), 'data', 'uw_photo/recons/results_Henry/Results_hard',
-        subject_id, f"{subject_id}_hard_manualLabel_merged.mgz")
+        os.getcwd(),
+        "data",
+        "uw_photo/recons/results_Henry/Results_hard",
+        subject_id,
+        f"{subject_id}_hard_manualLabel_merged.mgz",
+    )
 
     if os.path.exists(ref_seg):
         x = my.MRIread(ref_seg, im_only=True)
     else:
         sys.exit(f"Ground Truth doesn't exist for subject {subject_id}")
 
-    slice_idx = np.argmax((x > 1).sum(0).sum(0)) - 2 # subtracting 2 for padding
+    slice_idx = np.argmax((x > 1).sum(0).sum(0)) - 2  # subtracting 2 for padding
     start_idx = slice_idx % options.multiply_factor
 else:
     start_idx = 0
@@ -248,14 +251,14 @@ else:
     output_registered_reference = None
 
 if os.path.isdir(output_directory) is False:
-    os.makedirs(output_directory,exist_ok=True)
+    os.makedirs(output_directory, exist_ok=True)
 
 ########################################################
 
 # Constants
 if DL_synthesis_model is None:
     RESOLUTIONS = [4, 2, 1, 0.5]
-    STEPS = [25, 25, 25, 25]
+    STEPS = [300, 300, 300, 300]
     if FAST:
         STEPS = [10, 2, 2, 2]
 
@@ -266,8 +269,6 @@ else:
     STEPS = [25, 25, 25]
     if FAST:
         STEPS = [10, 2, 2]
-
-
 
 LR = 1.0
 TOL = 1e-6
@@ -333,6 +334,7 @@ Nphotos = len(d_i)
 Iorig = []
 Morig = []
 
+all_croppings = []
 for n in np.arange(Nphotos):
     X = np.flip(cv2.imread(d_i[n]), axis=-1)  # convert to RGB
 
@@ -343,6 +345,7 @@ for n in np.arange(Nphotos):
 
     for l in 1 + np.arange(np.max(Y)):
         mask, cropping = my.cropLabelVol(Y == l, np.round(5 / photo_res))
+        all_croppings.append(cropping)
         cropping[2] = 0
         cropping[5] = 3
         image = my.applyCropping(X, cropping)
@@ -352,8 +355,7 @@ for n in np.arange(Nphotos):
 
 ########################################################
 
-print("Resampling to highest target resolution: " + str(RESOLUTIONS[-1]) +
-      " mm")
+print("Resampling to highest target resolution: " + str(RESOLUTIONS[-1]) + " mm")
 
 Nslices0 = len(Iorig)
 select_slices = np.arange(start_idx, Nslices0, options.multiply_factor)
@@ -361,11 +363,11 @@ select_slices = np.arange(start_idx, Nslices0, options.multiply_factor)
 if options.skip_flag:
     if slice_idx in select_slices:
         print(
-            f'NOTE: {subject_id}, GT Slice {slice_idx}, Skip {options.multiply_factor}, Selected'
+            f"NOTE: {subject_id}, GT Slice {slice_idx}, Skip {options.multiply_factor}, Selected"
         )
     else:
         print(
-            f'NOTE: {subject_id}, GT Slice {slice_idx}, Skip {options.multiply_factor}, NOT Selected'
+            f"NOTE: {subject_id}, GT Slice {slice_idx}, Skip {options.multiply_factor}, NOT Selected"
         )
 
 Nslices = len(select_slices)
@@ -405,21 +407,25 @@ Is = []
 Ms = []
 Affs = []
 
-aff = np.array([
-    [0, -RESOLUTIONS[-1], 0, 0],
-    [0, 0, -slice_thickness, 0],
-    [-RESOLUTIONS[-1], 0, 0, 0],
-    [0, 0, 0, 1],
-])
+aff = np.array(
+    [
+        [0, -RESOLUTIONS[-1], 0, 0],
+        [0, 0, -slice_thickness, 0],
+        [-RESOLUTIONS[-1], 0, 0, 0],
+        [0, 0, 0, 1],
+    ]
+)
 if reverse_lr:
     aff[0, 1] = -aff[0, 1]
 im = np.zeros([*siz, Nslices + 2 * PAD_AP, 3])
 mask = np.zeros([*siz, Nslices + 2 * PAD_AP])
+all_paddings = []
 for n in np.arange(Nslices):
     idx1 = np.ceil(0.5 * (np.array(siz) - sizes[n, :])).astype("int")
     idx2 = (idx1 + sizes[n, :]).astype("int")
-    im[idx1[0]:idx2[0], idx1[1]:idx2[1], n + PAD_AP, :] = I[n]
-    mask[idx1[0]:idx2[0], idx1[1]:idx2[1], n + PAD_AP] = M[n]
+    im[idx1[0] : idx2[0], idx1[1] : idx2[1], n + PAD_AP, :] = I[n]
+    mask[idx1[0] : idx2[0], idx1[1] : idx2[1], n + PAD_AP] = M[n]
+    all_paddings.append(idx1[0:2] - all_croppings[n][0:2])
 
 Is.append(im)
 Ms.append(mask)
@@ -460,8 +466,9 @@ for s in np.arange(Nscales - 2, -1, -1):
     aff[3, 3] = 1
     if reverse_lr:
         aff[0, 1] = -aff[0, 1]
-    aux = np.array([[RESOLUTIONS[s] / RESOLUTIONS[-1]],
-                    [RESOLUTIONS[s] / RESOLUTIONS[-1]], [1]])
+    aux = np.array(
+        [[RESOLUTIONS[s] / RESOLUTIONS[-1]], [RESOLUTIONS[s] / RESOLUTIONS[-1]], [1]]
+    )
     aff[0:3, 3] = np.matmul(Affs[-1][0:3, 0:3], (0.5 * aux - 0.5))[:, 0]
 
     Is.insert(0, im)
@@ -474,8 +481,9 @@ if ref_type == "surface":
     for s in range(Nscales):
         erode_its = np.ceil(1.0 / RESOLUTIONS[s]).astype("int")
         for z in range(Nslices):
-            M_ERODED = scipy.ndimage.binary_erosion(Ms[s][:, :, z] > 0.5,
-                                                    iterations=erode_its)
+            M_ERODED = scipy.ndimage.binary_erosion(
+                Ms[s][:, :, z] > 0.5, iterations=erode_its
+            )
             for c in range(3):
                 Is[s][:, :, z, c] = my.grad2d(Is[s][:, :, z, c]) * M_ERODED
 
@@ -486,7 +494,7 @@ print("Reading and preprocessing reference")
 if ref_type != "surface":
     REF, REFaff = my.MRIread(input_reference)
     if np.isnan(REF).any():
-        print('There are NaNs here')
+        print("There are NaNs here")
         REF[np.isnan(REF)] = 0
     REF = np.squeeze(REF)
 
@@ -495,7 +503,9 @@ if ref_type != "surface":
     REF_padded = np.zeros(np.array(REF.shape) + 2 * pad)
     REF_padded[pad:-pad, pad:-pad, pad:-pad] = REF
     REFaff_padded = np.copy(REFaff)
-    REFaff_padded [:-1, -1] = REFaff_padded [:-1, -1] - np.matmul(REFaff_padded [:-1, :-1], np.array([pad, pad, pad]))
+    REFaff_padded[:-1, -1] = REFaff_padded[:-1, -1] - np.matmul(
+        REFaff_padded[:-1, :-1], np.array([pad, pad, pad])
+    )
     REF = REF_padded
     REFaff = REFaff_padded
 
@@ -509,14 +519,17 @@ if ref_type != "surface":
 # Surfaces require quite a bit of extra work
 else:
 
-    original_mesh_decimated = (output_directory +
-                               "/input_mesh_with_header.decimated.surf")
+    original_mesh_decimated = (
+        output_directory + "/input_mesh_with_header.decimated.surf"
+    )
     original_mesh_full = output_directory + "/input_mesh_with_header.surf"
     original_mask_vol = output_directory + "/input_mesh_with_header.filled.mgz"
-    reoriented_mask_vol = (output_directory +
-                           "/input_mesh_with_header.filled.reoriented.mgz")
+    reoriented_mask_vol = (
+        output_directory + "/input_mesh_with_header.filled.reoriented.mgz"
+    )
     reoriented_mesh_decimated = (
-        output_directory + "/input_mesh_with_header.decimated.reoriented.surf")
+        output_directory + "/input_mesh_with_header.decimated.reoriented.surf"
+    )
     reoriented_mesh_full = output_directory + "/input_mesh_with_header.reoriented.surf"
 
     if mesh_manually_oriented:
@@ -543,34 +556,35 @@ else:
         T = np.matmul(aff2, np.linalg.inv(aff1))
 
         Pfull, Tfull, meta_full = nib.freesurfer.read_geometry(
-            original_mesh_full, read_metadata=True)
+            original_mesh_full, read_metadata=True
+        )
         Pfull += meta_full["cras"]  # ** CRUCIAL **
         meta_full["cras"][:] = 0
         Pfull_oriented = np.matmul(
-            np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1),
-            T.transpose())[:, :-1]
-        nib.freesurfer.write_geometry(reoriented_mesh_full,
-                                      Pfull_oriented,
-                                      Tfull,
-                                      volume_info=meta_full)
+            np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1), T.transpose()
+        )[:, :-1]
+        nib.freesurfer.write_geometry(
+            reoriented_mesh_full, Pfull_oriented, Tfull, volume_info=meta_full
+        )
 
         Pdec, Tdec, meta_dec = nib.freesurfer.read_geometry(
-            original_mesh_decimated, read_metadata=True)
+            original_mesh_decimated, read_metadata=True
+        )
         Pdec += meta_dec["cras"]  # ** CRUCIAL **
         meta_dec["cras"][:] = 0
         Pdec_oriented = np.matmul(
-            np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1),
-            T.transpose())[:, :-1]
-        nib.freesurfer.write_geometry(reoriented_mesh_decimated,
-                                      Pdec_oriented,
-                                      Tdec,
-                                      volume_info=meta_dec)
+            np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1), T.transpose()
+        )[:, :-1]
+        nib.freesurfer.write_geometry(
+            reoriented_mesh_decimated, Pdec_oriented, Tdec, volume_info=meta_dec
+        )
 
     else:
         fs_home = os.getenv("FREESURFER_HOME")
         if fs_home is None:
             raise Exception(
-                "FREESURFER_HOME variable not found; is FreeSurfer sourced?")
+                "FREESURFER_HOME variable not found; is FreeSurfer sourced?"
+            )
 
         # Load reference mesh and apply header, unless already there
         if os.path.isfile(output_directory + "/input_mesh_with_header.surf"):
@@ -579,25 +593,32 @@ else:
             )
         else:
             print("Loading reference mesh and applying existing header")
-            a = os.system("mris_copy_header " + input_reference + " " +
-                          fs_home + "/subjects/bert/surf/rh.white " +
-                          output_directory +
-                          "/input_mesh_with_header.surf >/dev/null")
+            a = os.system(
+                "mris_copy_header "
+                + input_reference
+                + " "
+                + fs_home
+                + "/subjects/bert/surf/rh.white "
+                + output_directory
+                + "/input_mesh_with_header.surf >/dev/null"
+            )
             if a > 0:
-                raise Exception(
-                    "error in mris_copy_header... is FreeSurfer sourced?")
+                raise Exception("error in mris_copy_header... is FreeSurfer sourced?")
 
         # Fill the mesh to get a binary volume (useful in first iteration)
-        if os.path.isfile(output_directory +
-                          "/input_mesh_with_header.filled.mgz"):
+        if os.path.isfile(output_directory + "/input_mesh_with_header.filled.mgz"):
             print(
                 "Filled in mesh volume already found in output directory; skipping computation"
             )
         else:
             print("Filling in mesh to obtain binary volume")
-            a = os.system("mris_fill -r 1 " + output_directory +
-                          "/input_mesh_with_header.surf " + output_directory +
-                          "/temp.mgz >/dev/null")
+            a = os.system(
+                "mris_fill -r 1 "
+                + output_directory
+                + "/input_mesh_with_header.surf "
+                + output_directory
+                + "/temp.mgz >/dev/null"
+            )
             if a > 0:
                 raise Exception("error in mris_fill... is FreeSurfer sourced?")
             # We pad a bit
@@ -607,15 +628,15 @@ else:
             img2[pad:-pad, pad:-pad, pad:-pad] = img
             aff2 = aff
             aff2[:-1, -1] = aff2[:-1, -1] - np.squeeze(
-                np.matmul(aff[:-1, :-1], pad * np.ones([3, 1])))
+                np.matmul(aff[:-1, :-1], pad * np.ones([3, 1]))
+            )
             my.MRIwrite(
-                img2, aff2,
-                output_directory + "/input_mesh_with_header.filled.mgz")
+                img2, aff2, output_directory + "/input_mesh_with_header.filled.mgz"
+            )
             os.system("rm -rf " + output_directory + "/temp.mgz >/dev/null")
 
         # Decimate mesh so coarse alignment doesn't take like a year...
-        if os.path.isfile(output_directory +
-                          "/input_mesh_with_header.decimated.surf"):
+        if os.path.isfile(output_directory + "/input_mesh_with_header.decimated.surf"):
             print(
                 "Decimated mesh volume already found in output directory; skipping computation"
             )
@@ -624,17 +645,21 @@ else:
                 "Decimating mesh - useful for some operations that would otherwise take forever"
             )
             a = os.system(
-                "mris_remesh  -i " + output_directory +
-                "/input_mesh_with_header.surf  -o " + output_directory +
-                "/input_mesh_with_header.decimated.surf --nvert 10000 >/dev/null"
+                "mris_remesh  -i "
+                + output_directory
+                + "/input_mesh_with_header.surf  -o "
+                + output_directory
+                + "/input_mesh_with_header.decimated.surf --nvert 10000 >/dev/null"
             )
             if a > 0:
                 raise Exception("mris_remesh failed")
 
         # OK now we are ready for automated  alignment
-        if (os.path.isfile(reoriented_mesh_decimated)
-                and os.path.isfile(reoriented_mesh_full)
-                and os.path.isfile(reoriented_mask_vol)):
+        if (
+            os.path.isfile(reoriented_mesh_decimated)
+            and os.path.isfile(reoriented_mesh_full)
+            and os.path.isfile(reoriented_mask_vol)
+        ):
             print(
                 "Reoriented mesh and filled volume volume already found in output directory; skipping alignment"
             )
@@ -661,8 +686,7 @@ else:
                 read_metadata=True,
             )
             Pdec += meta_dec["cras"]  # ** CRUCIAL **
-            meta_dec[
-                "cras"][:] = 0  # We can now easily write surfaces in stl or surf
+            meta_dec["cras"][:] = 0  # We can now easily write surfaces in stl or surf
             mesh_dec = trimesh.Trimesh(Pdec, Tdec, process=False)
             T, cost = trimesh.registration.mesh_other(
                 mesh_dec,
@@ -678,28 +702,27 @@ else:
                 np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1),
                 T.transpose(),
             )[:, :-1]
-            nib.freesurfer.write_geometry(reoriented_mesh_decimated,
-                                          Pdec_oriented,
-                                          Tdec,
-                                          volume_info=meta_dec)
+            nib.freesurfer.write_geometry(
+                reoriented_mesh_decimated, Pdec_oriented, Tdec, volume_info=meta_dec
+            )
 
             Pfull, Tfull, meta_full = nib.freesurfer.read_geometry(
-                output_directory + "input_mesh_with_header.surf",
-                read_metadata=True)
+                output_directory + "input_mesh_with_header.surf", read_metadata=True
+            )
             Pfull += meta_full["cras"]  # ** CRUCIAL **
             meta_full["cras"][:] = 0
             Pfull_oriented = np.matmul(
                 np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1),
                 T.transpose(),
             )[:, :-1]
-            nib.freesurfer.write_geometry(reoriented_mesh_full,
-                                          Pfull_oriented,
-                                          Tfull,
-                                          volume_info=meta_full)
+            nib.freesurfer.write_geometry(
+                reoriented_mesh_full, Pfull_oriented, Tfull, volume_info=meta_full
+            )
 
             # Write registered binary mask
-            img, aff = my.MRIread(output_directory +
-                                  "/input_mesh_with_header.filled.mgz")
+            img, aff = my.MRIread(
+                output_directory + "/input_mesh_with_header.filled.mgz"
+            )
             aff2 = np.matmul(T, aff)
             my.MRIwrite(img, aff2, reoriented_mask_vol)
 
@@ -711,12 +734,14 @@ else:
     REF = (REF > 0.5).astype("float")
 
     Pfull, Tfull, meta_full = nib.freesurfer.read_geometry(
-        reoriented_mesh_full, read_metadata=True)
+        reoriented_mesh_full, read_metadata=True
+    )
     Pfull += meta_full["cras"]  # ** CRUCIAL **
     meta_full["cras"][:] = 0
 
     Pdec, Tdec, meta_dec = nib.freesurfer.read_geometry(
-        reoriented_mesh_decimated, read_metadata=True)
+        reoriented_mesh_decimated, read_metadata=True
+    )
     Pdec += meta_dec["cras"]  # ** CRUCIAL **
     meta_dec["cras"][:] = 0
 
@@ -726,8 +751,7 @@ else:
         for z in range(Nslices):
             # M_ERODED = scipy.ndimage.binary_erosion(Ms[s][:, :, z] > .5, iterations=erode_its)
             for c in range(3):
-                Is[s][:, :, z,
-                      c] = my.grad2d(Is[s][:, :, z, c]) / 255.0  # * M_ERODED
+                Is[s][:, :, z, c] = my.grad2d(Is[s][:, :, z, c]) / 255.0  # * M_ERODED
 
 ########################################################
 
@@ -741,14 +765,12 @@ if ref_type == "surface":
 
 else:
     idx = np.where(REF > 0.1)
-    cog_mri_vox = np.array([[np.mean(idx[0])], [np.mean(idx[1])],
-                            [np.mean(idx[2])]])
+    cog_mri_vox = np.array([[np.mean(idx[0])], [np.mean(idx[1])], [np.mean(idx[2])]])
     cog_mri_ras = my.vox2ras(cog_mri_vox, REFaff)
     REFaff[:-1, -1] = REFaff[:-1, -1] - np.squeeze(cog_mri_ras)
 
 idx = np.where(Ms[-1] > 0)
-cog_photo_vox = np.array([[np.mean(idx[0])], [np.mean(idx[1])],
-                          [np.mean(idx[2])]])
+cog_photo_vox = np.array([[np.mean(idx[0])], [np.mean(idx[1])], [np.mean(idx[2])]])
 cog_photo_ras = my.vox2ras(cog_photo_vox, Affs[-1])
 for s in np.arange(Nscales):
     Affs[s][:-1, -1] = Affs[s][:-1, -1] - np.squeeze(cog_photo_ras)
@@ -820,30 +842,44 @@ for mode_idx in range(n_modes):
                     for z in range(Nslices):
                         # M_ERODED = scipy.ndimage.binary_erosion(Ms[s][:, :, z] > .5, iterations=erode_its)
                         for c in range(3):
-                            Is[s][:, :, z, c] = my.grad2d(Is[s][:, :, z,
-                                                                c])  # * M_ERODED
+                            Is[s][:, :, z, c] = my.grad2d(
+                                Is[s][:, :, z, c]
+                            )  # * M_ERODED
                     if ref_type == "surface":
                         Is[s] = Is[s] / 255.0  # Otherwise loss goes bananas...
             else:
                 # Experimental mode: deep learning based synthesis of MRI-like slices from the photos
                 # (note that this requires providing a reference processed with SynthSR)
                 REF = np.copy(REF_orig)
-                tempdir = output_directory + '/temp/'
-                os.system('rm -rf ' + tempdir)
+                tempdir = output_directory + "/temp/"
+                os.system("rm -rf " + tempdir)
                 os.mkdir(tempdir)
-                tempdir2 = output_directory + '/temp2/'
-                os.system('rm -rf ' + tempdir2)
+                tempdir2 = output_directory + "/temp2/"
+                os.system("rm -rf " + tempdir2)
                 os.mkdir(tempdir2)
                 for z in range(Nslices):
-                    cv2.imwrite(tempdir + str(z) + '.png', np.mean(Is[-1][:, :, z], axis=-1).astype('B'))
-                scriptdir = os.path.dirname(os.path.dirname(os.path.abspath(sys.argv[0])))
-                os.system(scriptdir + '/run_synthesis.sh ' + tempdir + ' ' + tempdir2 + ' ' + DL_synthesis_model)
+                    cv2.imwrite(
+                        tempdir + str(z) + ".png",
+                        np.mean(Is[-1][:, :, z], axis=-1).astype("B"),
+                    )
+                scriptdir = os.path.dirname(
+                    os.path.dirname(os.path.abspath(sys.argv[0]))
+                )
+                os.system(
+                    scriptdir
+                    + "/run_synthesis.sh "
+                    + tempdir
+                    + " "
+                    + tempdir2
+                    + " "
+                    + DL_synthesis_model
+                )
                 for z in range(Nslices):
-                    aux = cv2.imread(tempdir2 + str(z) + '_SynthSR.png').astype(float)
-                    aux[Is[s][:, :, z, :] ==0] = 0
+                    aux = cv2.imread(tempdir2 + str(z) + "_SynthSR.png").astype(float)
+                    aux[Is[s][:, :, z, :] == 0] = 0
                     Is[s][:, :, z, :] = aux
-                os.system('rm -rf ' + tempdir)
-                os.system('rm -rf ' + tempdir2)
+                os.system("rm -rf " + tempdir)
+                os.system("rm -rf " + tempdir2)
                 # Build pyramid
                 for s in np.arange(Nscales - 2, -1, -1):
                     for z in range(Nslices):
@@ -855,7 +891,7 @@ for mode_idx in range(n_modes):
                             interpolation=cv2.INTER_AREA,
                         )
                         Isl[Ms[s][:, :, z] == 0] = 0
-                        Is[s][:,:,z,:] = Isl
+                        Is[s][:, :, z, :] = Isl
 
         else:
             ref_type_iteration = ref_type
@@ -878,8 +914,10 @@ for mode_idx in range(n_modes):
 
     for res in range(len(RESOLUTIONS)):
 
-        print("Working on resolution %d of %d (%.2f mm): %d iterations " %
-              (res + 1, len(RESOLUTIONS), RESOLUTIONS[res], STEPS[res]))
+        print(
+            "Working on resolution %d of %d (%.2f mm): %d iterations "
+            % (res + 1, len(RESOLUTIONS), RESOLUTIONS[res], STEPS[res])
+        )
 
         if ref_type == "surface":
             if FAST:
@@ -894,7 +932,7 @@ for mode_idx in range(n_modes):
         else:
             ref_surface = None
 
-        volres = np.sqrt(np.sum(REFaff[:, :-1]**2, axis=0))
+        volres = np.sqrt(np.sum(REFaff[:, :-1] ** 2, axis=0))
         sigmas = 0.5 * RESOLUTIONS[res] / volres
         REFsmooth = scipy.ndimage.gaussian_filter(REF, sigmas)
         allow_s_reference = ref_type == "soft_mask"
@@ -934,40 +972,51 @@ for mode_idx in range(n_modes):
         if FAST:
             optimizer = torch.optim.SGD(model.parameters(), lr=10 * LR)
         else:
-            optimizer = torch.optim.LBFGS(model.parameters(),
-                                          lr=LR,
-                                          line_search_fn="strong_wolfe")
+            import photo_reconstruction.LBFGS as LBFGS
+
+            optimizer = LBFGS.FullBatchLBFGS(model.parameters())
 
         loss_old = 1e10
+
+        trigger_times = 0
         for epoch in range(STEPS[res]):
 
             # Compute loss with forward pass
             loss = model()[0]
 
-            # # backpropagate and optimize with GD
-            # optimizer.zero_grad()
-            # loss.backward()
-            # optimizer.step()
-
             # optimize with BFGS
             def closure():
                 optimizer.zero_grad()
                 loss = model()[0]
-                loss.backward()
-
+                # loss.backward()
                 return loss
 
-            optimizer.step(closure)
+            # optimizer.step(closure)
+            if epoch == 1:
+                loss.backward()
+            options = {"closure": closure, "current_loss": loss, "max_ls": 75}
+            loss, _, lr, _, F_eval, G_eval, _, fail_flag = optimizer.step(options)
+
+            if fail_flag:
+                print("Line search failed")
+                break
 
             # print step info
             loss = loss.cpu().detach().numpy()
-            print("   Step %d, loss = %.6f" % (epoch + 1, loss), flush=True)
+            print("   Step %d, loss = %.10f" % (epoch + 1, loss), flush=True)
 
-            if (loss_old - loss) < TOL:
-                print("   Decrease in loss below tolerance limit")
-                break
+            if ((loss_old - loss) < TOL) and not FAST:
+                trigger_times += 1
+
+                if trigger_times >= 25:
+                    print(
+                        "   Decrease in loss below tolerance limit for the last 25 steps"
+                    )
+                    break
             else:
-                loss_old = loss
+                trigger_times = 0
+
+            loss_old = loss
 
         # Retrieve model parameters
         t = model.t.cpu().detach().numpy()
@@ -987,13 +1036,19 @@ for mode_idx in range(n_modes):
             model.photo_vol = torch.Tensor(Is_copy).to(
                 device
             )  # TODO: I had a division by np.max(Is_copy) but got rid of it...
-            model.photo_rearranged = torch.unsqueeze(model.photo_vol.permute(
-                3, 0, 1, 2),
-                                                     dim=0).to(model.device)
+            model.photo_rearranged = torch.unsqueeze(
+                model.photo_vol.permute(3, 0, 1, 2), dim=0
+            ).to(model.device)
 
             if ref_type == "surface":
-                _, photo_resampled, photo_aff, mri_aff_combined, Rt, TvoxPhotos = model(
-                )
+                (
+                    _,
+                    photo_resampled,
+                    photo_aff,
+                    mri_aff_combined,
+                    Rt,
+                    TvoxPhotos,
+                ) = model()
                 Rt = Rt.cpu().detach().numpy()
             else:
                 _, photo_resampled, photo_aff, mri_aff_combined, _, TvoxPhotos = model()
@@ -1016,16 +1071,15 @@ if ref_type == "surface":
     my.MRIwrite(photo_resampled, photo_aff, output_photo_recon)
 
     Pfull_rotated = np.matmul(
-        np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1),
-        Rt.transpose())[:, :-1]
-    nib.freesurfer.write_geometry(output_registered_reference,
-                                  Pfull_rotated,
-                                  Tfull,
-                                  volume_info=meta_full)
+        np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1), Rt.transpose()
+    )[:, :-1]
+    nib.freesurfer.write_geometry(
+        output_registered_reference, Pfull_rotated, Tfull, volume_info=meta_full
+    )
 
     Pdec_rotated = np.matmul(
-        np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1),
-        Rt.transpose())[:, :-1]
+        np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1), Rt.transpose()
+    )[:, :-1]
     nib.freesurfer.write_geometry(
         output_registered_reference[:-4] + "decimated.surf",
         Pdec_rotated,
@@ -1036,12 +1090,15 @@ if ref_type == "surface":
     reg_mask = output_directory + "registered_reference.mgz"
     my.MRIwrite(REF_orig, mri_aff_combined, reg_mask)
 
-    print("freeview -v %s -v %s -f %s -f %s" % (
-        output_photo_recon,
-        reg_mask,
-        output_registered_reference[:-4] + "decimated.surf",
-        output_registered_reference,
-    ))
+    print(
+        "freeview -v %s -v %s -f %s -f %s"
+        % (
+            output_photo_recon,
+            reg_mask,
+            output_registered_reference[:-4] + "decimated.surf",
+            output_registered_reference,
+        )
+    )
 
 else:
     # Unless reference is soft, go back to original RAS space of reference before writing photo volume
@@ -1054,16 +1111,16 @@ else:
     else:
         T = np.matmul(mri_aff_combined, np.linalg.inv(REFaff_orig))
         Tinv = np.linalg.inv(T)
-        my.MRIwrite(photo_resampled, np.matmul(Tinv, photo_aff),
-                    output_photo_recon)
+        my.MRIwrite(photo_resampled, np.matmul(Tinv, photo_aff), output_photo_recon)
         print("freeview %s %s" % (output_photo_recon, input_reference))
 
-if 'TvoxPhotos' in locals():
+if "TvoxPhotos" in locals():
     try:
         np.save(output_directory + "slice_matrix_M.npy", TvoxPhotos)
+        np.save(output_directory + "all_paddings.npy", all_paddings)
     except:
-        print('FAIL: TvoxPhotos could not be saved')
+        print("FAIL: TvoxPhotos could not be saved")
 else:
-    print('DNE: TvoxPhotos does not exist')
+    print("DNE: TvoxPhotos does not exist")
 
 print("All done!")
