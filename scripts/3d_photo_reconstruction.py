@@ -994,8 +994,12 @@ for mode_idx in range(n_modes):
             # optimizer.step(closure)
             if epoch == 1:
                 loss.backward()
-            options = {"closure": closure, "current_loss": loss}
-            loss, _, lr, _, F_eval, G_eval, _, _ = optimizer.step(options)
+            options = {"closure": closure, "current_loss": loss, "max_ls": 75}
+            loss, _, lr, _, F_eval, G_eval, _, fail_flag = optimizer.step(options)
+
+            if fail_flag:
+                print("Line search failed")
+                break
 
             # print step info
             loss = loss.cpu().detach().numpy()
