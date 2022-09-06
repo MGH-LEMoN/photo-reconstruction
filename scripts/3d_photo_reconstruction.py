@@ -133,7 +133,10 @@ parser.add_argument("--gpu", type=int, help="Index of GPU to use", default=None)
 
 parser.add_argument("--skip", action="store_true", dest="skip_flag")
 parser.add_argument(
-    "--multiply_factor", type=int, help="Multiplication Factor for thickness", default=1
+    "--multiply_factor",
+    type=int,
+    help="Multiplication Factor for thickness",
+    default=1,
 )
 
 options = parser.parse_args()
@@ -467,7 +470,11 @@ for s in np.arange(Nscales - 2, -1, -1):
     if reverse_lr:
         aff[0, 1] = -aff[0, 1]
     aux = np.array(
-        [[RESOLUTIONS[s] / RESOLUTIONS[-1]], [RESOLUTIONS[s] / RESOLUTIONS[-1]], [1]]
+        [
+            [RESOLUTIONS[s] / RESOLUTIONS[-1]],
+            [RESOLUTIONS[s] / RESOLUTIONS[-1]],
+            [1],
+        ]
     )
     aff[0:3, 3] = np.matmul(Affs[-1][0:3, 0:3], (0.5 * aux - 0.5))[:, 0]
 
@@ -561,7 +568,8 @@ else:
         Pfull += meta_full["cras"]  # ** CRUCIAL **
         meta_full["cras"][:] = 0
         Pfull_oriented = np.matmul(
-            np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1), T.transpose()
+            np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1),
+            T.transpose(),
         )[:, :-1]
         nib.freesurfer.write_geometry(
             reoriented_mesh_full, Pfull_oriented, Tfull, volume_info=meta_full
@@ -573,7 +581,8 @@ else:
         Pdec += meta_dec["cras"]  # ** CRUCIAL **
         meta_dec["cras"][:] = 0
         Pdec_oriented = np.matmul(
-            np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1), T.transpose()
+            np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1),
+            T.transpose(),
         )[:, :-1]
         nib.freesurfer.write_geometry(
             reoriented_mesh_decimated, Pdec_oriented, Tdec, volume_info=meta_dec
@@ -631,7 +640,9 @@ else:
                 np.matmul(aff[:-1, :-1], pad * np.ones([3, 1]))
             )
             my.MRIwrite(
-                img2, aff2, output_directory + "/input_mesh_with_header.filled.mgz"
+                img2,
+                aff2,
+                output_directory + "/input_mesh_with_header.filled.mgz",
             )
             os.system("rm -rf " + output_directory + "/temp.mgz >/dev/null")
 
@@ -703,11 +714,15 @@ else:
                 T.transpose(),
             )[:, :-1]
             nib.freesurfer.write_geometry(
-                reoriented_mesh_decimated, Pdec_oriented, Tdec, volume_info=meta_dec
+                reoriented_mesh_decimated,
+                Pdec_oriented,
+                Tdec,
+                volume_info=meta_dec,
             )
 
             Pfull, Tfull, meta_full = nib.freesurfer.read_geometry(
-                output_directory + "input_mesh_with_header.surf", read_metadata=True
+                output_directory + "input_mesh_with_header.surf",
+                read_metadata=True,
             )
             Pfull += meta_full["cras"]  # ** CRUCIAL **
             meta_full["cras"][:] = 0
@@ -716,7 +731,10 @@ else:
                 T.transpose(),
             )[:, :-1]
             nib.freesurfer.write_geometry(
-                reoriented_mesh_full, Pfull_oriented, Tfull, volume_info=meta_full
+                reoriented_mesh_full,
+                Pfull_oriented,
+                Tfull,
+                volume_info=meta_full,
             )
 
             # Write registered binary mask
@@ -1051,7 +1069,14 @@ for mode_idx in range(n_modes):
                 ) = model()
                 Rt = Rt.cpu().detach().numpy()
             else:
-                _, photo_resampled, photo_aff, mri_aff_combined, _, TvoxPhotos = model()
+                (
+                    _,
+                    photo_resampled,
+                    photo_aff,
+                    mri_aff_combined,
+                    _,
+                    TvoxPhotos,
+                ) = model()
 
             TvoxPhotos = TvoxPhotos.cpu().detach().numpy()
             mri_aff_combined = mri_aff_combined.cpu().detach().numpy()
@@ -1071,14 +1096,16 @@ if ref_type == "surface":
     my.MRIwrite(photo_resampled, photo_aff, output_photo_recon)
 
     Pfull_rotated = np.matmul(
-        np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1), Rt.transpose()
+        np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1),
+        Rt.transpose(),
     )[:, :-1]
     nib.freesurfer.write_geometry(
         output_registered_reference, Pfull_rotated, Tfull, volume_info=meta_full
     )
 
     Pdec_rotated = np.matmul(
-        np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1), Rt.transpose()
+        np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1),
+        Rt.transpose(),
     )[:, :-1]
     nib.freesurfer.write_geometry(
         output_registered_reference[:-4] + "decimated.surf",
