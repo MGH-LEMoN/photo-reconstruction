@@ -48,35 +48,33 @@ uw_recon:
 		done; \
 	done;
 	
-## mgh_recon: Run reconstructions with soft mask on the MGH data
-mgh_recon: SID = 2629_left 2605_left 2607_left 2614_left 2615_left 2619_left 2621_left 2624_left 2629_left 2630_left 2635_left 2657_left 2663_left 2668_left 2687_left 2689_left 
+## mgh_recon: Run reconstructions on the MGH data
+# For more info: https://github.com/hvgazula/photo-reconstruction/blob/main/README.md
+mgh_recon: SID = #SUBJ_ID
+
+#left = 2711_left 2708_left 2629_left 2605_left 2607_left 2614_left 2615_left 2619_left 2621_left 2624_left 2629_left 2630_left 2635_left 2657_left 2663_left 2668_left 2687_left 2689_left 
 #whole = 2604_whole 2628_whole 2644_whole 2661_whole 2675_whole
 #right = 2618_right 2623_right 2627_right 2637_right 2638_right 2639_right 2642_right 2648_right 2683_right 2691_right
 mgh_%: SKIP_SLICE = $(shell seq 1 1)
 mgh_recon: PRJCT_DIR = /autofs/cluster/vive/
-mgh_recon: OUT_DIR = $(PRJCT_DIR)/MGH_photo_recon
-mgh_recon: DATA_DIR = $(PRJCT_DIR)/MGH_photo_recon
-#mgh_recon: REF_HARD = --ref_mask $(DATA_DIR)/FLAIR_Scan_Data/$$sid.rotated_cerebrum.mgz
-#mgh_recon: REF_SOFT = --ref_soft_mask /autofs/cluster/vive/UW_photo_recon/prob_atlases/onlyCerebrum.left_hemi.smoothed.nii.gz
-#mgh_recon: REF_IMAGE = --ref_image $(DATA_DIR)/FLAIR_Scan_Data/$$sid.rotated_masked.mgz
-#gh_recon: REF_KEY = soft
-#mgh_recon: REF_VALUE = $(REF_LEFT)
+mgh_recon: OUT_DIR = $(PRJCT_DIR)/MGH_photo_recon/
+mgh_recon: DATA_DIR = $(PRJCT_DIR)/MGH_photo_recon/
+
 # REF_KEY: REF_VALUE options are {hard: $(REF_MASK) | soft: $(REF_SOFT_MASK) | image: $(REF_IMAGE)}
 mgh_recon: SAMPLE_LEFT = /autofs/cluster/vive/UW_photo_recon/prob_atlases/onlyCerebrum.left_hemi.smoothed.nii.gz
 mgh_recon: SAMPLE_RIGHT = /autofs/cluster/vive/UW_photo_recon/prob_atlases/onlyCerebrum.right_hemi.smoothed.nii.gz
 mgh_recon: SAMPLE_WHOLE = /autofs/cluster/vive/UW_photo_recon/prob_atlases/onlyCerebrum.smoothed.nii.gz
-mgh_recon: SAMPLE_VALUE = --reft_soft_mask $(SAMPLE_LEFT)
-# REF_KEY: SAMPLE_VALUE options are {left: $(SAMPLE_LEFT) | right: $(SAMPLE_RIGHT) | whole: $(SAMPLE_WHOLE)}
 
 mgh_%: CMD = jobsubmit -p rtx8000 -A lcnrtx -m 128G -t 0-4:00:00 -c 3 -G 1
 # {echo | python | sbatch --job-name=$(REF_KEY)-$$skip-$$p submit.sh} 
 mgh_recon:
 	for sid in $(SID); do \
 		for skip in $(SKIP_SLICE); do \
-			$(CMD) python /autofs/cluster/vive/tmp/photo-reconstruction/scripts_trial/photo-reconstruction/scripts/3d_photo_reconstruction.py \
+			$(CMD) python /autofs/cluster/vive/tmp/old_gui_versions/photo-reconstruction-main/scripts/3d_photo_reconstruction.py \
 			--input_photo_dir $(DATA_DIR)/$$sid/deformed \
 			--input_segmentation_dir $(DATA_DIR)/$$sid/connected_components \
-			$(SAMPLE_VALUE) \
+			--ref_surface $(DATA_DIR)/$$sid/mesh/$$sid.stl \
+			--mesh_autoalign_target $(SAMPLE_WHOLE) \
 			--photos_of_posterior_side \
 			--allow_z_stretch \
 			--slice_thickness 10 \
