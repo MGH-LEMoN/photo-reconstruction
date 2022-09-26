@@ -21,6 +21,11 @@ from ext.utils import get_git_revision_short_hash, seed_all
 seed_all(0)
 print(f"Git Commit Hash: {get_git_revision_short_hash()}")
 
+# TODO 1: run 2604 with rigid only
+# TODO 2: rename 2605 if recon looks good (copy mesh from scratch)
+# TODO 3: check ordering of photos
+
+
 ########################################################
 # Parse arguments
 parser = argparse.ArgumentParser(
@@ -42,11 +47,15 @@ parser.add_argument(
     required=True,
 )
 
-parser.add_argument("--ref_mask", type=str, help="Reference binary mask", default=None)
+parser.add_argument(
+    "--ref_mask", type=str, help="Reference binary mask", default=None
+)
 parser.add_argument(
     "--ref_surface", type=str, help="Reference surface file", default=None
 )
-parser.add_argument("--ref_image", type=str, help="Reference image file", default=None)
+parser.add_argument(
+    "--ref_image", type=str, help="Reference image file", default=None
+)
 parser.add_argument(
     "--ref_soft_mask", type=str, help="Reference soft mask", default=None
 )
@@ -96,6 +105,15 @@ parser.add_argument(
     + " You should probably *never* use this with soft references",
 )
 parser.set_defaults(allow_z_stretch=False)
+
+
+parser.add_argument(
+    "--rigid_only_for_photos",
+    dest="rigid_only_for_photos",
+    action="store_true",
+    help="Switch on if you want photos to deform only rigidly (not affine)",
+)
+parser.set_defaults(rigid_only_for_photos=False)
 
 parser.add_argument(
     "--slice_thickness", type=float, help="Slice thickness in mm", required=True
@@ -240,7 +258,9 @@ if options.skip_flag:
     else:
         sys.exit(f"Ground Truth doesn't exist for subject {subject_id}")
 
-    slice_idx = np.argmax((x > 1).sum(0).sum(0)) - 2  # subtracting 2 for padding
+    slice_idx = (
+        np.argmax((x > 1).sum(0).sum(0)) - 2
+    )  # subtracting 2 for padding
     start_idx = slice_idx % options.multiply_factor
 else:
     start_idx = 0
@@ -358,7 +378,9 @@ for n in np.arange(Nphotos):
 
 ########################################################
 
-print("Resampling to highest target resolution: " + str(RESOLUTIONS[-1]) + " mm")
+print(
+    "Resampling to highest target resolution: " + str(RESOLUTIONS[-1]) + " mm"
+)
 
 Nslices0 = len(Iorig)
 select_slices = np.arange(start_idx, Nslices0, options.multiply_factor)
@@ -537,7 +559,9 @@ else:
     reoriented_mesh_decimated = (
         output_directory + "/input_mesh_with_header.decimated.reoriented.surf"
     )
-    reoriented_mesh_full = output_directory + "/input_mesh_with_header.reoriented.surf"
+    reoriented_mesh_full = (
+        output_directory + "/input_mesh_with_header.reoriented.surf"
+    )
 
     if mesh_manually_oriented:
         if not os.path.isfile(original_mesh_decimated):
@@ -612,10 +636,14 @@ else:
                 + "/input_mesh_with_header.surf >/dev/null"
             )
             if a > 0:
-                raise Exception("error in mris_copy_header... is FreeSurfer sourced?")
+                raise Exception(
+                    "error in mris_copy_header... is FreeSurfer sourced?"
+                )
 
         # Fill the mesh to get a binary volume (useful in first iteration)
-        if os.path.isfile(output_directory + "/input_mesh_with_header.filled.mgz"):
+        if os.path.isfile(
+            output_directory + "/input_mesh_with_header.filled.mgz"
+        ):
             print(
                 "Filled in mesh volume already found in output directory; skipping computation"
             )
@@ -647,7 +675,9 @@ else:
             os.system("rm -rf " + output_directory + "/temp.mgz >/dev/null")
 
         # Decimate mesh so coarse alignment doesn't take like a year...
-        if os.path.isfile(output_directory + "/input_mesh_with_header.decimated.surf"):
+        if os.path.isfile(
+            output_directory + "/input_mesh_with_header.decimated.surf"
+        ):
             print(
                 "Decimated mesh volume already found in output directory; skipping computation"
             )
@@ -697,7 +727,9 @@ else:
                 read_metadata=True,
             )
             Pdec += meta_dec["cras"]  # ** CRUCIAL **
-            meta_dec["cras"][:] = 0  # We can now easily write surfaces in stl or surf
+            meta_dec["cras"][
+                :
+            ] = 0  # We can now easily write surfaces in stl or surf
             mesh_dec = trimesh.Trimesh(Pdec, Tdec, process=False)
             T, cost = trimesh.registration.mesh_other(
                 mesh_dec,
@@ -769,7 +801,9 @@ else:
         for z in range(Nslices):
             # M_ERODED = scipy.ndimage.binary_erosion(Ms[s][:, :, z] > .5, iterations=erode_its)
             for c in range(3):
-                Is[s][:, :, z, c] = my.grad2d(Is[s][:, :, z, c]) / 255.0  # * M_ERODED
+                Is[s][:, :, z, c] = (
+                    my.grad2d(Is[s][:, :, z, c]) / 255.0
+                )  # * M_ERODED
 
 ########################################################
 
@@ -783,12 +817,16 @@ if ref_type == "surface":
 
 else:
     idx = np.where(REF > 0.1)
-    cog_mri_vox = np.array([[np.mean(idx[0])], [np.mean(idx[1])], [np.mean(idx[2])]])
+    cog_mri_vox = np.array(
+        [[np.mean(idx[0])], [np.mean(idx[1])], [np.mean(idx[2])]]
+    )
     cog_mri_ras = my.vox2ras(cog_mri_vox, REFaff)
     REFaff[:-1, -1] = REFaff[:-1, -1] - np.squeeze(cog_mri_ras)
 
 idx = np.where(Ms[-1] > 0)
-cog_photo_vox = np.array([[np.mean(idx[0])], [np.mean(idx[1])], [np.mean(idx[2])]])
+cog_photo_vox = np.array(
+    [[np.mean(idx[0])], [np.mean(idx[1])], [np.mean(idx[2])]]
+)
 cog_photo_ras = my.vox2ras(cog_photo_vox, Affs[-1])
 for s in np.arange(Nscales):
     Affs[s][:-1, -1] = Affs[s][:-1, -1] - np.squeeze(cog_photo_ras)
@@ -815,6 +853,10 @@ if n_cp_nonlin[0] > 0:
 else:
     n_modes = 2
     print("We will be running 2 modes: rigid, and affine (skipping nonlinear)")
+
+if options.rigid_only_for_photos:
+    n_modes = 1
+    print("We will only be running 1 mode only: rigid for everything")
 
 for mode_idx in range(n_modes):
 
@@ -893,7 +935,9 @@ for mode_idx in range(n_modes):
                     + DL_synthesis_model
                 )
                 for z in range(Nslices):
-                    aux = cv2.imread(tempdir2 + str(z) + "_SynthSR.png").astype(float)
+                    aux = cv2.imread(tempdir2 + str(z) + "_SynthSR.png").astype(
+                        float
+                    )
                     aux[Is[s][:, :, z, :] == 0] = 0
                     Is[s][:, :, z, :] = aux
                 os.system("rm -rf " + tempdir)
@@ -1013,7 +1057,9 @@ for mode_idx in range(n_modes):
             if epoch == 1:
                 loss.backward()
             options = {"closure": closure, "current_loss": loss, "max_ls": 75}
-            loss, _, lr, _, F_eval, G_eval, _, fail_flag = optimizer.step(options)
+            loss, _, lr, _, F_eval, G_eval, _, fail_flag = optimizer.step(
+                options
+            )
 
             if fail_flag:
                 print("Line search failed")
@@ -1138,7 +1184,9 @@ else:
     else:
         T = np.matmul(mri_aff_combined, np.linalg.inv(REFaff_orig))
         Tinv = np.linalg.inv(T)
-        my.MRIwrite(photo_resampled, np.matmul(Tinv, photo_aff), output_photo_recon)
+        my.MRIwrite(
+            photo_resampled, np.matmul(Tinv, photo_aff), output_photo_recon
+        )
         print("freeview %s %s" % (output_photo_recon, input_reference))
 
 if "TvoxPhotos" in locals():
