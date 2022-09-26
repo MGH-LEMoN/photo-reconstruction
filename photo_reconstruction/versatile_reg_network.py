@@ -1,5 +1,4 @@
 import numpy as np
-import scipy.ndimage
 import torch
 import torch.nn as nn
 import torch.nn.functional as nnf
@@ -81,24 +80,37 @@ class PhotoAligner(nn.Module):
             self.pad_ignore = [pad_ignore, pad_ignore]
         else:
             # Discover automatically
-            idx = np.argwhere(np.sum(np.sum(photo_mask_vol, axis=0), axis=0) > 0)
-            self.pad_ignore = [np.min(idx), photo_mask_vol.shape[-1] - 1 - np.max(idx)]
+            idx = np.argwhere(
+                np.sum(np.sum(photo_mask_vol, axis=0), axis=0) > 0
+            )
+            self.pad_ignore = [
+                np.min(idx),
+                photo_mask_vol.shape[-1] - 1 - np.max(idx),
+            ]
 
         if t_ini is not None:
             self.t = torch.nn.Parameter(torch.tensor(t_ini).to(self.device))
         else:
-            self.t = torch.nn.Parameter(torch.zeros(2, self.Nslices).to(self.device))
+            self.t = torch.nn.Parameter(
+                torch.zeros(2, self.Nslices).to(self.device)
+            )
         self.t.requires_grad = True
 
         if theta_ini is not None:
-            self.theta = torch.nn.Parameter(torch.tensor(theta_ini).to(self.device))
+            self.theta = torch.nn.Parameter(
+                torch.tensor(theta_ini).to(self.device)
+            )
         else:
-            self.theta = torch.nn.Parameter(torch.zeros(self.Nslices).to(self.device))
+            self.theta = torch.nn.Parameter(
+                torch.zeros(self.Nslices).to(self.device)
+            )
         self.theta.requires_grad = True
 
         if allow_scaling_and_shear:
             if shear_ini is not None:
-                self.shear = torch.nn.Parameter(torch.tensor(shear_ini).to(self.device))
+                self.shear = torch.nn.Parameter(
+                    torch.tensor(shear_ini).to(self.device)
+                )
             else:
                 self.shear = torch.nn.Parameter(
                     torch.zeros(2, self.Nslices).to(self.device)
@@ -125,7 +137,9 @@ class PhotoAligner(nn.Module):
 
         if allow_sz:
             if sz_ini is not None:
-                self.sz = torch.nn.Parameter(torch.tensor(sz_ini).to(self.device))
+                self.sz = torch.nn.Parameter(
+                    torch.tensor(sz_ini).to(self.device)
+                )
             else:
                 self.sz = torch.nn.Parameter(torch.zeros(1).to(self.device))
             self.sz.requires_grad = True
@@ -141,7 +155,9 @@ class PhotoAligner(nn.Module):
                     torch.tensor(s_reference_ini).to(self.device)
                 )
             else:
-                self.s_reference = torch.nn.Parameter(torch.zeros(1).to(self.device))
+                self.s_reference = torch.nn.Parameter(
+                    torch.zeros(1).to(self.device)
+                )
             self.s_reference.requires_grad = True
         else:
             if s_reference_ini is not None:
@@ -154,7 +170,9 @@ class PhotoAligner(nn.Module):
                 torch.tensor(t_reference_ini).to(self.device)
             )
         else:
-            self.t_reference = torch.nn.Parameter(torch.zeros(3).to(self.device))
+            self.t_reference = torch.nn.Parameter(
+                torch.zeros(3).to(self.device)
+            )
         self.t_reference.requires_grad = True
 
         if theta_reference_ini is not None:
@@ -162,12 +180,16 @@ class PhotoAligner(nn.Module):
                 torch.tensor(theta_reference_ini).to(self.device)
             )
         else:
-            self.theta_reference = torch.nn.Parameter(torch.zeros(3).to(self.device))
+            self.theta_reference = torch.nn.Parameter(
+                torch.zeros(3).to(self.device)
+            )
         self.theta_reference.requires_grad = True
 
         if allow_nonlin:
             if field_ini is not None:
-                self.field = torch.nn.Parameter(torch.tensor(field_ini).to(self.device))
+                self.field = torch.nn.Parameter(
+                    torch.tensor(field_ini).to(self.device)
+                )
             else:
                 self.field = torch.nn.Parameter(
                     torch.zeros(5, 5, 2, self.Nslices).to(self.device)
@@ -191,7 +213,9 @@ class PhotoAligner(nn.Module):
         # We scale angles / shearings / scalings as a simple form of preconditioning (which shouldn't be needed with bfgs, but whatever...)
 
         # Parameters of photos
-        theta_f = self.theta / 180 * torch.tensor(np.pi)  # + 0.1  # degrees -> radians
+        theta_f = (
+            self.theta / 180 * torch.tensor(np.pi)
+        )  # + 0.1  # degrees -> radians
         shear_f = self.shear / 100  # + 0.1 # percentages
         scaling_f = torch.exp(
             self.scaling / 20
@@ -259,7 +283,9 @@ class PhotoAligner(nn.Module):
         if self.field is not None:
 
             field_fullsiz = torch.nn.Upsample(
-                size=self.photo_vol.shape[:-2], align_corners=True, mode="bilinear"
+                size=self.photo_vol.shape[:-2],
+                align_corners=True,
+                mode="bilinear",
             )(field_pixels)
             field_fullsiz_rearranged = field_fullsiz.permute(0, 2, 3, 1)
 
@@ -329,7 +355,8 @@ class PhotoAligner(nn.Module):
         grids_new = grids_new.permute(0, 2, 3, 4, 1)
         for i in range(3):
             grids_new[:, :, :, :, i] = 2 * (
-                grids_new[:, :, :, :, i] / (self.photo_mask_vol.shape[i] - 1) - 0.5
+                grids_new[:, :, :, :, i] / (self.photo_mask_vol.shape[i] - 1)
+                - 0.5
             )
         # Not sure why, but channels need to be reversed
         grids_new = grids_new[..., [2, 1, 0]]
@@ -381,7 +408,9 @@ class PhotoAligner(nn.Module):
         trans_and_scale[1, 1] = s_reference_f
         trans_and_scale[2, 2] = s_reference_f
 
-        Rt = torch.matmul(trans_and_scale, torch.matmul(torch.matmul(Rx, Ry), Rz))
+        Rt = torch.matmul(
+            trans_and_scale, torch.matmul(torch.matmul(Rx, Ry), Rz)
+        )
 
         if self.ref_type == "surface":
 
@@ -514,7 +543,12 @@ class PhotoAligner(nn.Module):
                     u_I = I_sum / win_size
                     u_J = J_sum / win_size
 
-                    cross = IJ_sum - u_J * I_sum - u_I * J_sum + u_I * u_J * win_size
+                    cross = (
+                        IJ_sum
+                        - u_J * I_sum
+                        - u_I * J_sum
+                        + u_I * u_J * win_size
+                    )
                     I_var = I2_sum - 2 * u_I * I_sum + u_I * u_I * win_size
                     J_var = J2_sum - 2 * u_J * J_sum + u_J * u_J * win_size
 
@@ -524,21 +558,27 @@ class PhotoAligner(nn.Module):
 
                 ncc_mri = (
                     slice_wise_LNCC(
-                        mri_resampled[:, :, self.pad_ignore[0] : -self.pad_ignore[1]],
+                        mri_resampled[
+                            :, :, self.pad_ignore[0] : -self.pad_ignore[1]
+                        ],
                         photo_resampled[
                             :, :, self.pad_ignore[0] : -self.pad_ignore[1], 0
                         ],
                     )
                     / 3.0
                     + slice_wise_LNCC(
-                        mri_resampled[:, :, self.pad_ignore[0] : -self.pad_ignore[1]],
+                        mri_resampled[
+                            :, :, self.pad_ignore[0] : -self.pad_ignore[1]
+                        ],
                         photo_resampled[
                             :, :, self.pad_ignore[0] : -self.pad_ignore[1], 1
                         ],
                     )
                     / 3.0
                     + slice_wise_LNCC(
-                        mri_resampled[:, :, self.pad_ignore[0] : -self.pad_ignore[1]],
+                        mri_resampled[
+                            :, :, self.pad_ignore[0] : -self.pad_ignore[1]
+                        ],
                         photo_resampled[
                             :, :, self.pad_ignore[0] : -self.pad_ignore[1], 2
                         ],
@@ -550,7 +590,9 @@ class PhotoAligner(nn.Module):
                 nccs = torch.zeros(
                     3, self.Nslices - self.pad_ignore[0] - self.pad_ignore[1]
                 ).to(self.device)
-                for z in range(self.Nslices - self.pad_ignore[0] - self.pad_ignore[1]):
+                for z in range(
+                    self.Nslices - self.pad_ignore[0] - self.pad_ignore[1]
+                ):
                     x = mri_resampled[:, :, z + self.pad_ignore[0]]
                     mx = torch.mean(x)
                     vx = x - mx
@@ -560,21 +602,29 @@ class PhotoAligner(nn.Module):
                         vy = y - my
                         nccs[c, z] = (
                             torch.mean(vx * vy)
-                            / torch.sqrt(torch.clamp(torch.mean(vx**2), min=1e-5))
-                            / torch.sqrt(torch.clamp(torch.mean(vy**2), min=1e-5))
+                            / torch.sqrt(
+                                torch.clamp(torch.mean(vx**2), min=1e-5)
+                            )
+                            / torch.sqrt(
+                                torch.clamp(torch.mean(vy**2), min=1e-5)
+                            )
                         )
 
                 ncc_mri = torch.mean(nccs)
 
         else:
             num = torch.sum(2 * (mri_resampled * mask_resampled))
-            den = torch.clamp(torch.sum(mri_resampled + mask_resampled), min=1e-5)
+            den = torch.clamp(
+                torch.sum(mri_resampled + mask_resampled), min=1e-5
+            )
             dice_mri = num / den
 
         dices_slices = torch.zeros(
             self.Nslices - 1 - self.pad_ignore[0] - self.pad_ignore[1]
         ).to(self.device)
-        for z in range(self.Nslices - 1 - self.pad_ignore[0] - self.pad_ignore[1]):
+        for z in range(
+            self.Nslices - 1 - self.pad_ignore[0] - self.pad_ignore[1]
+        ):
             dices_slices[z] = torch.sum(
                 2
                 * (
@@ -593,7 +643,9 @@ class PhotoAligner(nn.Module):
         nccs_slices = torch.zeros(
             self.Nslices - 1 - self.pad_ignore[0] - self.pad_ignore[1]
         ).to(self.device)
-        for z in range(self.Nslices - 1 - self.pad_ignore[0] - self.pad_ignore[1]):
+        for z in range(
+            self.Nslices - 1 - self.pad_ignore[0] - self.pad_ignore[1]
+        ):
             x = photo_resampled[:, :, z + self.pad_ignore[0], ...]
             y = photo_resampled[:, :, z + self.pad_ignore[0] + 1, ...]
             m = (
@@ -634,7 +686,9 @@ class PhotoAligner(nn.Module):
 
         else:
             loss = (
-                loss_photos - self.k_surface_term * av_grad - self.k_dice_mri * dice_mri
+                loss_photos
+                - self.k_surface_term * av_grad
+                - self.k_dice_mri * dice_mri
             )
             # loss = loss - 0.01 * torch.abs(torch.log(sz_f))
 
@@ -660,3 +714,21 @@ class PhotoAligner(nn.Module):
             kk = 1
 
         return loss, photo_resampled, photo_aff, mri_aff_combined, Rt, T
+
+    def parameters2d(self):
+        yield self.t
+        yield self.theta
+        if isinstance(self.shear, nn.Parameter):
+            yield self.shear
+        if isinstance(self.scaling, nn.Parameter):
+            yield self.scaling
+        if isinstance(self.sz, nn.Parameter):
+            yield self.sz
+        if isinstance(self.field, nn.Parameter):
+            yield self.field
+
+    def parameters3d(self):
+        yield self.t_reference
+        yield self.theta_reference
+        if isinstance(self.s_reference, nn.Parameter):
+            yield self.s_reference

@@ -15,13 +15,11 @@ torch.set_default_dtype(torch.float64)
 import trimesh
 
 import ext.my_functions as my
-import photo_reconstruction.LBFGS as LBFGS
 import photo_reconstruction.versatile_reg_network as PRnets
 from ext.utils import get_git_revision_short_hash, seed_all
 
 seed_all(0)
 print(f"Git Commit Hash: {get_git_revision_short_hash()}")
-
 
 ########################################################
 # Parse arguments
@@ -104,14 +102,6 @@ parser.add_argument(
 parser.set_defaults(allow_z_stretch=False)
 
 parser.add_argument(
-    "--rigid_only_for_photos",
-    dest="rigid_only_for_photos",
-    action="store_true",
-    help="Switch on if you want photos to deform only rigidly (not affine)",
-)
-parser.set_defaults(rigid_only_for_photos=False)
-
-parser.add_argument(
     "--slice_thickness", type=float, help="Slice thickness in mm", required=True
 )
 parser.add_argument(
@@ -152,14 +142,6 @@ parser.add_argument(
     help="Multiplication Factor for thickness",
     default=1,
 )
-
-parser.add_argument(
-    "--alternate_training",
-    dest="alternate_training",
-    action="store_true",
-    help="Switch on if you want perform alternate training",
-)
-parser.set_defaults(alternate_training=False)
 
 options = parser.parse_args()
 
@@ -279,9 +261,6 @@ else:
 
 if os.path.isdir(output_directory) is False:
     os.makedirs(output_directory, exist_ok=True)
-
-# Training
-alternate_training = options.alternate_training
 
 ########################################################
 
@@ -861,10 +840,6 @@ else:
     n_modes = 2
     print("We will be running 2 modes: rigid, and affine (skipping nonlinear)")
 
-if options.rigid_only_for_photos:
-    n_modes = 1
-    print("We will only be running 1 mode only: rigid for everything")
-
 for mode_idx in range(n_modes):
 
     if mode_idx == 0:
@@ -1041,86 +1016,52 @@ for mode_idx in range(n_modes):
         if FAST:
             optimizer = torch.optim.SGD(model.parameters(), lr=10 * LR)
         else:
-            if alternate_training:
-                optimizer2d = LBFGS.FullBatchLBFGS(model.parameters2d())
-                optimizer3d = LBFGS.FullBatchLBFGS(model.parameters3d())
-            else:
-                optimizer = LBFGS.FullBatchLBFGS(model.parameters())
+            import photo_reconstruction.LBFGS as LBFGS
+
+            optimizer2d = LBFGS.FullBatchLBFGS(model.parameters2d())
+            optimizer3d = LBFGS.FullBatchLBFGS(model.parameters3d())
 
         loss_old = 1e10
 
         trigger_times = 0
-        for epoch in range(STEPS[res]):
+        for epoch in range(2 * STEPS[res]):
 
             # Compute loss with forward pass
             loss = model()[0]
 
             # optimize with BFGS
-            if alternate_training:
+            def closure2d():
+                optimizer2d.zero_grad()
+                loss = model()[0]
+                return loss
 
-                def closure2d():
-                    optimizer2d.zero_grad()
-                    loss = model()[0]
-                    return loss
-
-                def closure3d():
-                    optimizer3d.zero_grad()
-                    loss = model()[0]
-                    return loss
-
-            else:
-
-                def closure():
-                    optimizer.zero_grad()
-                    loss = model()[0]
-                    return loss
+            def closure3d():
+                optimizer3d.zero_grad()
+                loss = model()[0]
+                return loss
 
             # optimizer.step(closure)
             if epoch == 1:
                 loss.backward()
 
-            if alternate_training:
-                options2d = {
-                    "closure": closure2d,
-                    "current_loss": loss,
-                    "max_ls": 75,
-                }
-                options3d = {
-                    "closure": closure3d,
-                    "current_loss": loss,
-                    "max_ls": 75,
-                }
+            options2d = {
+                "closure": closure2d,
+                "current_loss": loss,
+                "max_ls": 75,
+            }
+            options3d = {
+                "closure": closure3d,
+                "current_loss": loss,
+                "max_ls": 75,
+            }
 
-                if epoch % 10 < 5:
-                    (
-                        loss,
-                        _,
-                        lr,
-                        _,
-                        F_eval,
-                        G_eval,
-                        _,
-                        fail_flag,
-                    ) = optimizer2d.step(options2d)
-                else:
-                    (
-                        loss,
-                        _,
-                        lr,
-                        _,
-                        F_eval,
-                        G_eval,
-                        _,
-                        fail_flag,
-                    ) = optimizer3d.step(options3d)
+            if epoch % 10 < 5:
+                loss, _, lr, _, F_eval, G_eval, _, fail_flag = optimizer2d.step(
+                    options2d
+                )
             else:
-                options = {
-                    "closure": closure,
-                    "current_loss": loss,
-                    "max_ls": 75,
-                }
-                loss, _, lr, _, F_eval, G_eval, _, fail_flag = optimizer.step(
-                    options
+                loss, _, lr, _, F_eval, G_eval, _, fail_flag = optimizer3d.step(
+                    options3d
                 )
 
             if fail_flag:
@@ -1192,12 +1133,9 @@ for mode_idx in range(n_modes):
             photo_aff = photo_aff.cpu().detach().numpy()
 
         # Free up memory
-        if alternate_training:
-            del optimizer2d
-            del optimizer3d
-        else:
-            del optimizer
         del model
+        del optimizer2d
+        del optimizer3d
 
 ########################################################
 
