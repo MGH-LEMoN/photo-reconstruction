@@ -365,6 +365,7 @@ Iorig = []
 Morig = []
 
 all_croppings = []
+total_slice_count = 0
 for n in np.arange(Nphotos):
     X = np.flip(cv2.imread(d_i[n]), axis=-1)  # convert to RGB
 
@@ -372,6 +373,8 @@ for n in np.arange(Nphotos):
         Y = scipy.io.loadmat(d_s[n])["LABELS"]
     else:
         Y = np.load(d_s[n])
+        print(f"Photo {n + 1} has {len(np.unique(Y))} slices (CCs)")
+        total_slice_count += len(np.unique(Y))
 
     for l in 1 + np.arange(np.max(Y)):
         mask, cropping = my.cropLabelVol(Y == l, np.round(5 / photo_res))
@@ -382,6 +385,8 @@ for n in np.arange(Nphotos):
         image = image * mask
         Iorig.append(image)
         Morig.append(mask)
+
+print(f"Found {total_slice_count} slices in {Nphotos} photos")
 
 ########################################################
 
