@@ -12,7 +12,7 @@ import scipy.ndimage
 import torch
 
 torch.set_default_dtype(torch.float64)
-import trimesh
+# import trimesh
 
 import ext.my_functions as my
 import photo_reconstruction.LBFGS as LBFGS
@@ -64,19 +64,26 @@ parser.add_argument(
     default=None,
 )
 
+# parser.add_argument(
+#     "--mesh_autoalign_target",
+#     type=str,
+#     help="Probabilistic atlas to globally initialize mesh rotation",
+#     default=None,
+# )
+# parser.add_argument(
+#     "--mesh_manually_oriented",
+#     dest="mesh_manually_oriented",
+#     action="store_true",
+#     help="Use this flag if you manually oriented the filled mesh (please see manual)",
+# )
+# parser.set_defaults(mesh_manually_oriented=False)
+
 parser.add_argument(
-    "--mesh_autoalign_target",
+    "--mesh_reorient_with_indices",
     type=str,
-    help="Probabilistic atlas to globally initialize mesh rotation",
+    help="Vertex indices of frontal pole, occipital pole, and top of central sulcus, separated with commas, for mesh alignment",
     default=None,
 )
-parser.add_argument(
-    "--mesh_manually_oriented",
-    dest="mesh_manually_oriented",
-    action="store_true",
-    help="Use this flag if you manually oriented the filled mesh (please see manual)",
-)
-parser.set_defaults(mesh_manually_oriented=False)
 
 parser.add_argument(
     "--photos_of_posterior_side",
@@ -145,7 +152,8 @@ parser.add_argument(
 
 parser.add_argument("--gpu", type=int, help="Index of GPU to use", default=None)
 
-parser.add_argument("--skip", action="store_true", dest="skip_flag")
+# TODO: Harsha, bear in mind that this needs to go in the public version...
+parser.add_argument("--skip", action="store_true", dest="skip_flag") 
 parser.add_argument(
     "--multiply_factor",
     type=int,
@@ -154,12 +162,12 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--alternate_training",
-    dest="alternate_training",
+    "--alternate_optimization",
+    dest="alternate_optimization",
     action="store_true",
     help="Switch on if you want perform alternate training",
 )
-parser.set_defaults(alternate_training=False)
+parser.set_defaults(alternate_optimization=False)
 
 options = parser.parse_args()
 
@@ -242,8 +250,8 @@ if n_cp_nonlin > 0 and n_cp_nonlin < 4:
     raise Exception(
         "If you are using the nonlinear mode, the minimum number of control points is 5"
     )
-mesh_autoalign_target = options.mesh_autoalign_target
-mesh_manually_oriented = options.mesh_manually_oriented
+# mesh_autoalign_target = options.mesh_autoalign_target
+# mesh_manually_oriented = options.mesh_manually_oriented
 stiffness_nonlin = options.stiffness_nonlin
 
 if options.skip_flag:
@@ -281,7 +289,7 @@ if os.path.isdir(output_directory) is False:
     os.makedirs(output_directory, exist_ok=True)
 
 # Training
-alternate_training = options.alternate_training
+alternate_optimization = options.alternate_optimization
 
 ########################################################
 
@@ -373,8 +381,8 @@ for n in np.arange(Nphotos):
         Y = scipy.io.loadmat(d_s[n])["LABELS"]
     else:
         Y = np.load(d_s[n])
-        print(f"Photo {n + 1} has {len(np.unique(Y))} slices (CCs)")
-        total_slice_count += len(np.unique(Y))
+    print(f"Photo {n + 1} has {len(np.unique(Y))-1} slices (CCs)") # Eugenio added -1 to account for zero
+    total_slice_count += (len(np.unique(Y)) - 1)
 
     for l in 1 + np.arange(np.max(Y)):
         mask, cropping = my.cropLabelVol(Y == l, np.round(5 / photo_res))
@@ -560,233 +568,341 @@ if ref_type != "surface":
 # Surfaces require quite a bit of extra work
 else:
 
-    original_mesh_decimated = (
-        output_directory + "/input_mesh_with_header.decimated.surf"
-    )
-    original_mesh_full = output_directory + "/input_mesh_with_header.surf"
-    original_mask_vol = output_directory + "/input_mesh_with_header.filled.mgz"
-    reoriented_mask_vol = (
-        output_directory + "/input_mesh_with_header.filled.reoriented.mgz"
-    )
-    reoriented_mesh_decimated = (
-        output_directory + "/input_mesh_with_header.decimated.reoriented.surf"
-    )
-    reoriented_mesh_full = (
-        output_directory + "/input_mesh_with_header.reoriented.surf"
-    )
+    input_mesh_converted = output_directory + "/input_mesh.surf"
+    input_mesh_reoriented = output_directory + "/input_mesh_reoriented.surf"
+    reoriented_mask_vol = output_directory + "/input_mesh_reoriented.filled.mgz"
 
-    if mesh_manually_oriented:
-        if not os.path.isfile(original_mesh_decimated):
-            raise Exception(
-                "Decimated mesh not found in output directory. Did you try running the code in automatic mode first? (see manual)"
-            )
-        if not os.path.isfile(original_mesh_full):
-            raise Exception(
-                "Full-res mesh not found in output directory. Did you try running the code in automatic mode first? (see manual)"
-            )
-        if not os.path.isfile(original_mask_vol):
-            raise Exception(
-                "Original mask (filled mesh) volume not found in output directory. Did you try running the code in automatic mode first? (see manual)"
-            )
-        if not os.path.isfile(reoriented_mask_vol):
-            raise Exception(
-                "Reoriented mask (filled mesh) volumes not found in output directory. Did you try running the code in automatic mode first? (see manual)"
-            )
-
-        print("Estimating transform from original and rotated volumes")
-        _, aff1 = my.MRIread(original_mask_vol)
-        _, aff2 = my.MRIread(reoriented_mask_vol)
-        T = np.matmul(aff2, np.linalg.inv(aff1))
-
-        Pfull, Tfull, meta_full = nib.freesurfer.read_geometry(
-            original_mesh_full, read_metadata=True
-        )
-        Pfull += meta_full["cras"]  # ** CRUCIAL **
-        meta_full["cras"][:] = 0
-        Pfull_oriented = np.matmul(
-            np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1),
-            T.transpose(),
-        )[:, :-1]
-        nib.freesurfer.write_geometry(
-            reoriented_mesh_full, Pfull_oriented, Tfull, volume_info=meta_full
+    fs_home = os.getenv("FREESURFER_HOME")
+    if fs_home is None:
+        raise Exception(
+            "FREESURFER_HOME variable not found; is FreeSurfer sourced?"
         )
 
-        Pdec, Tdec, meta_dec = nib.freesurfer.read_geometry(
-            original_mesh_decimated, read_metadata=True
-        )
-        Pdec += meta_dec["cras"]  # ** CRUCIAL **
-        meta_dec["cras"][:] = 0
-        Pdec_oriented = np.matmul(
-            np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1),
-            T.transpose(),
-        )[:, :-1]
-        nib.freesurfer.write_geometry(
-            reoriented_mesh_decimated, Pdec_oriented, Tdec, volume_info=meta_dec
+    print("Converting reference mesh to FreeSurfer format")
+    a = os.system(
+        "mris_convert "
+        + input_reference
+        + " "
+        + input_mesh_converted
+        + " >/dev/null"
+    )
+    if a > 0:
+        raise Exception(
+            "error in mris_convert... is FreeSurfer sourced?"
         )
 
+    print()
+    # Read in and fill in missing metadata if needed (eg if STL file)
+    P, T, meta = nib.freesurfer.read_geometry(input_mesh_converted, read_metadata=True)
+    if meta['valid'][0]=='0':
+        meta['valid'] = '1  # volume info valid'
+        meta['filename'] = ''
+        meta['volume'] = np.array([256,256,256]).astype(int)
+        meta['voxelsize'] = np.array([1.0, 1.0, 1.0])
+        meta['xras'] = np.array([-1.0, 0.0, 0.0])
+        meta['yras'] = np.array([0.0, 0.0, -1.0])
+        meta['zras'] = np.array([0.0, 1.0, 0.0])
+        meta['cras'] = np.array([0.0, 0.0, 0.0])
+
+
+    # Apply rotation using provided key vertices, if provided
+    # https://towardsdatascience.com/the-definitive-procedure-for-aligning-two-sets-of-3d-points-with-the-kabsch-algorithm-a7ec2126c87e
+    if options.mesh_reorient_with_indices is None:
+        print('No indices were provided to reorient mesh; just copying over...')
+        a = os.system(
+            "cp "
+            + input_mesh_converted
+            + " "
+            + input_mesh_reoriented
+            + " >/dev/null "
+        )
+        if a > 0:
+            raise Exception(
+                "error copying mesh"
+            )
     else:
-        fs_home = os.getenv("FREESURFER_HOME")
-        if fs_home is None:
-            raise Exception(
-                "FREESURFER_HOME variable not found; is FreeSurfer sourced?"
-            )
+        print('Reorienting mesh with provided vertices')
+        idx = np.zeros(3).astype(int)
+        aux = options.mesh_reorient_with_indices.split(",")
+        for i in range(len(idx)):
+            idx[i] = int(aux[i])
+        K = P[idx,:]
+        K = K - np.mean(K, axis=0)
 
-        # Load reference mesh and apply header, unless already there
-        if os.path.isfile(output_directory + "/input_mesh_with_header.surf"):
-            print(
-                "Reference mesh with header already found in output directory; skipping computation"
-            )
+        if True: # rough RAS aligment, already demeaned!
+            Kref = np.array([[0, 85, -20],
+                             [0, -80, -25],
+                             [0, -5, 45]]).astype(float)
+        else: # precomputed from rh.white
+            Kref = np.array([[5.64194918,  77.57227325, 10.32956219],
+                             [1.60726917, -90.65991211, -0.76444769],
+                             [3.86025476, -13.81834793, 69.90812683]])
+            Kref = Kref - np.mean(Kref, axis=0)
+
+        H = np.transpose(Kref) @ K
+        U, S, Vt = np.linalg.svd(H)
+        if np.linalg.det(np.transpose(Vt) @ U) > 0:
+            R = np.transpose(Vt) @ np.transpose(U)
         else:
-            print("Loading reference mesh and applying existing header")
-            a = os.system(
-                "mris_copy_header "
-                + input_reference
-                + " "
-                + fs_home
-                + "/subjects/bert/surf/rh.white "
-                + output_directory
-                + "/input_mesh_with_header.surf >/dev/null"
-            )
-            if a > 0:
-                raise Exception(
-                    "error in mris_copy_header... is FreeSurfer sourced?"
-                )
+            E = np.eye(3)
+            E[2, 2] = -1
+            R = np.transpose(Vt) @ (E @ np.transpose(U))
 
-        # Fill the mesh to get a binary volume (useful in first iteration)
-        if os.path.isfile(
-            output_directory + "/input_mesh_with_header.filled.mgz"
-        ):
-            print(
-                "Filled in mesh volume already found in output directory; skipping computation"
-            )
-        else:
-            print("Filling in mesh to obtain binary volume")
-            a = os.system(
-                "mris_fill -r 1 "
-                + output_directory
-                + "/input_mesh_with_header.surf "
-                + output_directory
-                + "/temp.mgz >/dev/null"
-            )
-            if a > 0:
-                raise Exception("error in mris_fill... is FreeSurfer sourced?")
-            # We pad a bit
-            [img, aff] = my.MRIread(output_directory + "/temp.mgz")
-            pad = 8
-            img2 = np.zeros(np.array(img.shape) + 2 * pad)
-            img2[pad:-pad, pad:-pad, pad:-pad] = img
-            aff2 = aff
-            aff2[:-1, -1] = aff2[:-1, -1] - np.squeeze(
-                np.matmul(aff[:-1, :-1], pad * np.ones([3, 1]))
-            )
-            my.MRIwrite(
-                img2,
-                aff2,
-                output_directory + "/input_mesh_with_header.filled.mgz",
-            )
-            os.system("rm -rf " + output_directory + "/temp.mgz >/dev/null")
+        P = P - np.mean(P, axis=0)
+        P = P @ R
+        meta["cras"][:] = 0
+        nib.freesurfer.write_geometry(input_mesh_reoriented, P, T, volume_info=meta)
 
-        # Decimate mesh so coarse alignment doesn't take like a year...
-        if os.path.isfile(
-            output_directory + "/input_mesh_with_header.decimated.surf"
-        ):
-            print(
-                "Decimated mesh volume already found in output directory; skipping computation"
-            )
-        else:
-            print(
-                "Decimating mesh - useful for some operations that would otherwise take forever"
-            )
-            a = os.system(
-                "mris_remesh  -i "
-                + output_directory
-                + "/input_mesh_with_header.surf  -o "
-                + output_directory
-                + "/input_mesh_with_header.decimated.surf --nvert 10000 >/dev/null"
-            )
-            if a > 0:
-                raise Exception("mris_remesh failed")
+    # Fill in the mesh
+    print("Filling in mesh to obtain binary volume")
+    a = os.system(
+        "mris_fill -r 1 "
+        + input_mesh_reoriented
+        + " "
+        + output_directory
+        + "/temp.mgz >/dev/null"
+    )
+    if a > 0:
+        raise Exception("error in mris_fill... is FreeSurfer sourced?")
+    # We pad a bit
+    [img, aff] = my.MRIread(output_directory + "/temp.mgz")
+    pad = 8
+    img2 = np.zeros(np.array(img.shape) + 2 * pad)
+    img2[pad:-pad, pad:-pad, pad:-pad] = img
+    aff2 = aff
+    aff2[:-1, -1] = aff2[:-1, -1] - np.squeeze(
+        np.matmul(aff[:-1, :-1], pad * np.ones([3, 1]))
+    )
+    my.MRIwrite(img2, aff2, reoriented_mask_vol)
+    os.system("rm -rf " + output_directory + "/temp.mgz >/dev/null")
 
-        # OK now we are ready for automated  alignment
-        if (
-            os.path.isfile(reoriented_mesh_decimated)
-            and os.path.isfile(reoriented_mesh_full)
-            and os.path.isfile(reoriented_mask_vol)
-        ):
-            print(
-                "Reoriented mesh and filled volume volume already found in output directory; skipping alignment"
-            )
-        else:
-            print(
-                "Aligning mesh to provided probabilistic atlas for automatic reorientation (can be a bit slow...)"
-            )
-
-            # Read autoalign target reference, get pixels around boundary, and convert to ras
-            target, target_aff = my.MRIread(mesh_autoalign_target)
-            target = np.squeeze(target)
-            idx = np.where((target > 0.49) & (target < 0.51))
-            idx = [*idx, np.ones_like(idx[0])]
-            b = np.stack(idx)
-            ras = np.matmul(target_aff, b)[:-1, :]
-            shift = np.mean(ras, axis=1)
-            ras = ras - shift[:, np.newaxis]
-            target_aff[0:-1, -1] = target_aff[0:-1, -1] - shift
-            target_pc = np.array(ras).transpose()
-
-            # And the actual registration
-            Pdec, Tdec, meta_dec = nib.freesurfer.read_geometry(
-                output_directory + "input_mesh_with_header.decimated.surf",
-                read_metadata=True,
-            )
-            Pdec += meta_dec["cras"]  # ** CRUCIAL **
-            meta_dec["cras"][
-                :
-            ] = 0  # We can now easily write surfaces in stl or surf
-            mesh_dec = trimesh.Trimesh(Pdec, Tdec, process=False)
-            T, cost = trimesh.registration.mesh_other(
-                mesh_dec,
-                target_pc,
-                samples=500,
-                scale=False,
-                icp_first=10,
-                icp_final=25,
-            )
-
-            # Write registered meshes at full and decimated resolution
-            Pdec_oriented = np.matmul(
-                np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1),
-                T.transpose(),
-            )[:, :-1]
-            nib.freesurfer.write_geometry(
-                reoriented_mesh_decimated,
-                Pdec_oriented,
-                Tdec,
-                volume_info=meta_dec,
-            )
-
-            Pfull, Tfull, meta_full = nib.freesurfer.read_geometry(
-                output_directory + "input_mesh_with_header.surf",
-                read_metadata=True,
-            )
-            Pfull += meta_full["cras"]  # ** CRUCIAL **
-            meta_full["cras"][:] = 0
-            Pfull_oriented = np.matmul(
-                np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1),
-                T.transpose(),
-            )[:, :-1]
-            nib.freesurfer.write_geometry(
-                reoriented_mesh_full,
-                Pfull_oriented,
-                Tfull,
-                volume_info=meta_full,
-            )
-
-            # Write registered binary mask
-            img, aff = my.MRIread(
-                output_directory + "/input_mesh_with_header.filled.mgz"
-            )
-            aff2 = np.matmul(T, aff)
-            my.MRIwrite(img, aff2, reoriented_mask_vol)
+    # original_mesh_decimated = (
+    #     output_directory + "/input_mesh_with_header.decimated.surf"
+    # )
+    # original_mesh_full = output_directory + "/input_mesh_with_header.surf"
+    # original_mask_vol = output_directory + "/input_mesh_with_header.filled.mgz"
+    # reoriented_mask_vol = (
+    #     output_directory + "/input_mesh_with_header.filled.reoriented.mgz"
+    # )
+    # reoriented_mesh_decimated = (
+    #     output_directory + "/input_mesh_with_header.decimated.reoriented.surf"
+    # )
+    # reoriented_mesh_full = (
+    #     output_directory + "/input_mesh_with_header.reoriented.surf"
+    # )
+    #
+    # if mesh_manually_oriented:
+    #     if not os.path.isfile(original_mesh_decimated):
+    #         raise Exception(
+    #             "Decimated mesh not found in output directory. Did you try running the code in automatic mode first? (see manual)"
+    #         )
+    #     if not os.path.isfile(original_mesh_full):
+    #         raise Exception(
+    #             "Full-res mesh not found in output directory. Did you try running the code in automatic mode first? (see manual)"
+    #         )
+    #     if not os.path.isfile(original_mask_vol):
+    #         raise Exception(
+    #             "Original mask (filled mesh) volume not found in output directory. Did you try running the code in automatic mode first? (see manual)"
+    #         )
+    #     if not os.path.isfile(reoriented_mask_vol):
+    #         raise Exception(
+    #             "Reoriented mask (filled mesh) volumes not found in output directory. Did you try running the code in automatic mode first? (see manual)"
+    #         )
+    #
+    #     print("Estimating transform from original and rotated volumes")
+    #     _, aff1 = my.MRIread(original_mask_vol)
+    #     _, aff2 = my.MRIread(reoriented_mask_vol)
+    #     T = np.matmul(aff2, np.linalg.inv(aff1))
+    #
+    #     Pfull, Tfull, meta_full = nib.freesurfer.read_geometry(
+    #         original_mesh_full, read_metadata=True
+    #     )
+    #     Pfull += meta_full["cras"]  # ** CRUCIAL **
+    #     meta_full["cras"][:] = 0
+    #     Pfull_oriented = np.matmul(
+    #         np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1),
+    #         T.transpose(),
+    #     )[:, :-1]
+    #     nib.freesurfer.write_geometry(
+    #         reoriented_mesh_full, Pfull_oriented, Tfull, volume_info=meta_full
+    #     )
+    #
+    #     Pdec, Tdec, meta_dec = nib.freesurfer.read_geometry(
+    #         original_mesh_decimated, read_metadata=True
+    #     )
+    #     Pdec += meta_dec["cras"]  # ** CRUCIAL **
+    #     meta_dec["cras"][:] = 0
+    #     Pdec_oriented = np.matmul(
+    #         np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1),
+    #         T.transpose(),
+    #     )[:, :-1]
+    #     nib.freesurfer.write_geometry(
+    #         reoriented_mesh_decimated, Pdec_oriented, Tdec, volume_info=meta_dec
+    #     )
+    #
+    # else:
+    #     fs_home = os.getenv("FREESURFER_HOME")
+    #     if fs_home is None:
+    #         raise Exception(
+    #             "FREESURFER_HOME variable not found; is FreeSurfer sourced?"
+    #         )
+    #
+    #     # Load reference mesh and apply header, unless already there
+    #     if os.path.isfile(output_directory + "/input_mesh_with_header.surf"):
+    #         print(
+    #             "Reference mesh with header already found in output directory; skipping computation"
+    #         )
+    #     else:
+    #         print("Loading reference mesh and applying existing header")
+    #         a = os.system(
+    #             "mris_copy_header "
+    #             + input_reference
+    #             + " "
+    #             + fs_home
+    #             + "/subjects/bert/surf/rh.white "
+    #             + output_directory
+    #             + "/input_mesh_with_header.surf >/dev/null"
+    #         )
+    #         if a > 0:
+    #             raise Exception(
+    #                 "error in mris_copy_header... is FreeSurfer sourced?"
+    #             )
+    #
+    #     # Fill the mesh to get a binary volume (useful in first iteration)
+    #     if os.path.isfile(
+    #         output_directory + "/input_mesh_with_header.filled.mgz"
+    #     ):
+    #         print(
+    #             "Filled in mesh volume already found in output directory; skipping computation"
+    #         )
+    #     else:
+    #         print("Filling in mesh to obtain binary volume")
+    #         a = os.system(
+    #             "mris_fill -r 1 "
+    #             + output_directory
+    #             + "/input_mesh_with_header.surf "
+    #             + output_directory
+    #             + "/temp.mgz >/dev/null"
+    #         )
+    #         if a > 0:
+    #             raise Exception("error in mris_fill... is FreeSurfer sourced?")
+    #         # We pad a bit
+    #         [img, aff] = my.MRIread(output_directory + "/temp.mgz")
+    #         pad = 8
+    #         img2 = np.zeros(np.array(img.shape) + 2 * pad)
+    #         img2[pad:-pad, pad:-pad, pad:-pad] = img
+    #         aff2 = aff
+    #         aff2[:-1, -1] = aff2[:-1, -1] - np.squeeze(
+    #             np.matmul(aff[:-1, :-1], pad * np.ones([3, 1]))
+    #         )
+    #         my.MRIwrite(
+    #             img2,
+    #             aff2,
+    #             output_directory + "/input_mesh_with_header.filled.mgz",
+    #         )
+    #         os.system("rm -rf " + output_directory + "/temp.mgz >/dev/null")
+    #
+    #     # Decimate mesh so coarse alignment doesn't take like a year...
+    #     if os.path.isfile(
+    #         output_directory + "/input_mesh_with_header.decimated.surf"
+    #     ):
+    #         print(
+    #             "Decimated mesh volume already found in output directory; skipping computation"
+    #         )
+    #     else:
+    #         print(
+    #             "Decimating mesh - useful for some operations that would otherwise take forever"
+    #         )
+    #         a = os.system(
+    #             "mris_remesh  -i "
+    #             + output_directory
+    #             + "/input_mesh_with_header.surf  -o "
+    #             + output_directory
+    #             + "/input_mesh_with_header.decimated.surf --nvert 10000 >/dev/null"
+    #         )
+    #         if a > 0:
+    #             raise Exception("mris_remesh failed")
+    #
+    #     # OK now we are ready for automated  alignment
+    #     if (
+    #         os.path.isfile(reoriented_mesh_decimated)
+    #         and os.path.isfile(reoriented_mesh_full)
+    #         and os.path.isfile(reoriented_mask_vol)
+    #     ):
+    #         print(
+    #             "Reoriented mesh and filled volume volume already found in output directory; skipping alignment"
+    #         )
+    #     else:
+    #         print(
+    #             "Aligning mesh to provided probabilistic atlas for automatic reorientation (can be a bit slow...)"
+    #         )
+    #
+    #         # Read autoalign target reference, get pixels around boundary, and convert to ras
+    #         target, target_aff = my.MRIread(mesh_autoalign_target)
+    #         target = np.squeeze(target)
+    #         idx = np.where((target > 0.49) & (target < 0.51))
+    #         idx = [*idx, np.ones_like(idx[0])]
+    #         b = np.stack(idx)
+    #         ras = np.matmul(target_aff, b)[:-1, :]
+    #         shift = np.mean(ras, axis=1)
+    #         ras = ras - shift[:, np.newaxis]
+    #         target_aff[0:-1, -1] = target_aff[0:-1, -1] - shift
+    #         target_pc = np.array(ras).transpose()
+    #
+    #         # And the actual registration
+    #         Pdec, Tdec, meta_dec = nib.freesurfer.read_geometry(
+    #             output_directory + "input_mesh_with_header.decimated.surf",
+    #             read_metadata=True,
+    #         )
+    #         Pdec += meta_dec["cras"]  # ** CRUCIAL **
+    #         meta_dec["cras"][
+    #             :
+    #         ] = 0  # We can now easily write surfaces in stl or surf
+    #         mesh_dec = trimesh.Trimesh(Pdec, Tdec, process=False)
+    #         T, cost = trimesh.registration.mesh_other(
+    #             mesh_dec,
+    #             target_pc,
+    #             samples=500,
+    #             scale=False,
+    #             icp_first=10,
+    #             icp_final=25,
+    #         )
+    #
+    #         # Write registered meshes at full and decimated resolution
+    #         Pdec_oriented = np.matmul(
+    #             np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1),
+    #             T.transpose(),
+    #         )[:, :-1]
+    #         nib.freesurfer.write_geometry(
+    #             reoriented_mesh_decimated,
+    #             Pdec_oriented,
+    #             Tdec,
+    #             volume_info=meta_dec,
+    #         )
+    #
+    #         Pfull, Tfull, meta_full = nib.freesurfer.read_geometry(
+    #             output_directory + "input_mesh_with_header.surf",
+    #             read_metadata=True,
+    #         )
+    #         Pfull += meta_full["cras"]  # ** CRUCIAL **
+    #         meta_full["cras"][:] = 0
+    #         Pfull_oriented = np.matmul(
+    #             np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1),
+    #             T.transpose(),
+    #         )[:, :-1]
+    #         nib.freesurfer.write_geometry(
+    #             reoriented_mesh_full,
+    #             Pfull_oriented,
+    #             Tfull,
+    #             volume_info=meta_full,
+    #         )
+    #
+    #         # Write registered binary mask
+    #         img, aff = my.MRIread(
+    #             output_directory + "/input_mesh_with_header.filled.mgz"
+    #         )
+    #         aff2 = np.matmul(T, aff)
+    #         my.MRIwrite(img, aff2, reoriented_mask_vol)
 
     # Read deformed surface and corresponding reference volume
     REF, REFaff = my.MRIread(reoriented_mask_vol)
@@ -795,17 +911,12 @@ else:
     REF = np.squeeze(REF) / np.max(REF)
     REF = (REF > 0.5).astype("float")
 
-    Pfull, Tfull, meta_full = nib.freesurfer.read_geometry(
-        reoriented_mesh_full, read_metadata=True
+    Pmesh, Tmesh, meta_mesh = nib.freesurfer.read_geometry(
+        input_mesh_reoriented, read_metadata=True
     )
-    Pfull += meta_full["cras"]  # ** CRUCIAL **
-    meta_full["cras"][:] = 0
+    Pmesh += meta_mesh["cras"]  # ** CRUCIAL **
+    meta_mesh["cras"][:] = 0
 
-    Pdec, Tdec, meta_dec = nib.freesurfer.read_geometry(
-        reoriented_mesh_decimated, read_metadata=True
-    )
-    Pdec += meta_dec["cras"]  # ** CRUCIAL **
-    meta_dec["cras"][:] = 0
 
     # And finally, take the gradient of the photos
     for s in range(Nscales):
@@ -822,9 +933,8 @@ else:
 print("Center the centers of gravity in the origin")
 
 if ref_type == "surface":
-    cog_mesh_ras = np.mean(Pfull, axis=0)
-    Pfull -= cog_mesh_ras
-    Pdec -= cog_mesh_ras
+    cog_mesh_ras = np.mean(Pmesh, axis=0)
+    Pmesh -= cog_mesh_ras
     REFaff[:-1, -1] = REFaff[:-1, -1] - cog_mesh_ras
 
 else:
@@ -994,15 +1104,12 @@ for mode_idx in range(n_modes):
         )
 
         if ref_type == "surface":
-            if FAST:
-                ref_surface = Pdec
-            else:
-                if True:  # TODO: see if using full mesh is worth it...
-                    ref_surface = Pfull
-                else:
-                    ratio = int(Pfull.shape[0] / 100000)
-                    ref_surface = Pfull[::ratio, :]
             allow_s_reference = False
+            if FAST:
+                ratio = int(Pmesh.shape[0] / 100000)
+                ref_surface = Pmesh[::ratio, :]
+            else:
+                ref_surface = Pmesh
         else:
             ref_surface = None
 
@@ -1046,7 +1153,7 @@ for mode_idx in range(n_modes):
         if FAST:
             optimizer = torch.optim.SGD(model.parameters(), lr=10 * LR)
         else:
-            if alternate_training:
+            if alternate_optimization:
                 optimizer2d = LBFGS.FullBatchLBFGS(model.parameters2d())
                 optimizer3d = LBFGS.FullBatchLBFGS(model.parameters3d())
             else:
@@ -1061,7 +1168,7 @@ for mode_idx in range(n_modes):
             loss = model()[0]
 
             # optimize with BFGS
-            if alternate_training:
+            if alternate_optimization:
 
                 def closure2d():
                     optimizer2d.zero_grad()
@@ -1084,7 +1191,7 @@ for mode_idx in range(n_modes):
             if epoch == 1:
                 loss.backward()
 
-            if alternate_training:
+            if alternate_optimization:
                 options2d = {
                     "closure": closure2d,
                     "current_loss": loss,
@@ -1197,7 +1304,7 @@ for mode_idx in range(n_modes):
             photo_aff = photo_aff.cpu().detach().numpy()
 
         # Free up memory
-        if alternate_training:
+        if alternate_optimization:
             del optimizer2d
             del optimizer3d
         else:
@@ -1212,34 +1319,22 @@ if ref_type == "surface":
 
     my.MRIwrite(photo_resampled, photo_aff, output_photo_recon)
 
-    Pfull_rotated = np.matmul(
-        np.concatenate([Pfull, np.ones([Pfull.shape[0], 1])], axis=1),
+    Pmesh_rotated = np.matmul(
+        np.concatenate([Pmesh, np.ones([Pmesh.shape[0], 1])], axis=1),
         Rt.transpose(),
     )[:, :-1]
     nib.freesurfer.write_geometry(
-        output_registered_reference, Pfull_rotated, Tfull, volume_info=meta_full
-    )
-
-    Pdec_rotated = np.matmul(
-        np.concatenate([Pdec, np.ones([Pdec.shape[0], 1])], axis=1),
-        Rt.transpose(),
-    )[:, :-1]
-    nib.freesurfer.write_geometry(
-        output_registered_reference[:-4] + "decimated.surf",
-        Pdec_rotated,
-        Tdec,
-        volume_info=meta_dec,
+        output_registered_reference, Pmesh_rotated, Tmesh, volume_info=meta_mesh
     )
 
     reg_mask = output_directory + "registered_reference.mgz"
     my.MRIwrite(REF_orig, mri_aff_combined, reg_mask)
 
     print(
-        "freeview -v %s -v %s -f %s -f %s"
+        "freeview -v %s -v %s -f %s"
         % (
             output_photo_recon,
             reg_mask,
-            output_registered_reference[:-4] + "decimated.surf",
             output_registered_reference,
         )
     )
