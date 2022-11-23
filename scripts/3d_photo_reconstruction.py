@@ -572,11 +572,11 @@ else:
     input_mesh_reoriented = output_directory + "/input_mesh_reoriented.surf"
     reoriented_mask_vol = output_directory + "/input_mesh_reoriented.filled.mgz"
 
-    fs_home = os.getenv("FREESURFER_HOME")
-    if fs_home is None:
-        raise Exception(
-            "FREESURFER_HOME variable not found; is FreeSurfer sourced?"
-        )
+    # fs_home = os.getenv("FREESURFER_HOME")
+    # if fs_home is None:
+    #     raise Exception(
+    #         "FREESURFER_HOME variable not found; is FreeSurfer sourced?"
+    #     )
 
     print("Converting reference mesh to FreeSurfer format")
     a = os.system(
