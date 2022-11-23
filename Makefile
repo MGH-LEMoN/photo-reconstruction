@@ -64,18 +64,19 @@ mgh_recon: REF_KEY = surface
 mgh_recon: SAMPLE_LEFT = /autofs/cluster/vive/prob_atlases/onlyCerebrum.left_hemi.smoothed.nii.gz
 mgh_recon: SAMPLE_RIGHT = /autofs/cluster/vive/prob_atlases/onlyCerebrum.right_hemi.smoothed.nii.gz
 mgh_recon: SAMPLE_WHOLE = /autofs/cluster/vive/prob_atlases/onlyCerebrum.smoothed.nii.gz
-
+mgh_recon: MESH_COORDINATES = /cluster/vive/MGH_photo_recon/mgh_mesh_coordinates.csv
 mgh_recon: CMD = sbatch --job-name=$(REF_KEY)-$$skip-$$p submit.sh
 # {echo | python | sbatch --job-name=$(REF_KEY)-$$skip-$$p submit.sh} 
 mgh_recon:
-	mkdir $(CODE_DIR)/logs/mgh-recon-20220926
+	mkdir -p $(CODE_DIR)/logs/mgh-recon-20220926
 	for sid in $(SID); do \
+		VERTICES=`cat $(MESH_COORDINATES) | grep \`echo $$sid | cut -d _ -f 1\` | cut -d , -f2-4`
 		for skip in $(SKIP_SLICE); do \
 			echo $(CODE_DIR)/scripts/3d_photo_reconstruction.py \
 			--input_photo_dir $(DATA_DIR)/$$sid/deformed \
 			--input_segmentation_dir $(DATA_DIR)/$$sid/connected_components \
 			--ref_surface $(DATA_DIR)/$$sid/mesh/$$sid.stl \
-			--mesh_autoalign_target $(SAMPLE_LEFT) \
+			--mesh_reorient_with_indices $$VERTICES \
 			--photos_of_posterior_side \
 			--allow_z_stretch \
 			--slice_thickness 10 \
