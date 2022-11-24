@@ -7,24 +7,20 @@
 ##SBATCH --cpus-per-task=1
 ##SBATCH --mem=32G
 #SBATCH --time=0-02:00:00
-#SBATCH --output="./logs/mgh-recon-20221120/%x.out"
-#SBATCH --error="./logs/mgh-recon-20221120/%x.err"
+#SBATCH --output="./logs/mgh-recon/%x.out"
+#SBATCH --error="./logs/mgh-recon/%x.err"
 #SBATCH --mail-user=hvgazula@umich.edu
 #SBATCH --mail-type=FAIL
 
-source /space/calico/1/users/Harsha/venvs/recon-venv/bin/activate
-export PYTHONPATH=/space/calico/1/users/Harsha/photo-reconstruction
+source /usr/local/freesurfer/nmr-dev-env-bash
 
 echo 'Start time:' `date`
 echo 'Node:' $HOSTNAME
 echo "$@"
 start=$(date +%s)
-if [[ -v SLURM_ARRAY_TASK_ID ]]
-then
-    python "$@" --electrodes $SLURM_ARRAY_TASK_ID
-else
-    python "$@"
-fi
+
+fspython "$@"
+
 end=$(date +%s)
 echo 'End time:' `date`
 echo "Elapsed Time: $(($end-$start)) seconds"

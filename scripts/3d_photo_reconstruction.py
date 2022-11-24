@@ -4,6 +4,8 @@ import glob
 import os
 import sys
 
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import cv2
 import nibabel as nib
 import numpy as np
@@ -12,7 +14,6 @@ import scipy.ndimage
 import torch
 
 torch.set_default_dtype(torch.float64)
-# import trimesh
 
 import ext.my_functions as my
 import photo_reconstruction.LBFGS as LBFGS
@@ -153,7 +154,7 @@ parser.add_argument(
 parser.add_argument("--gpu", type=int, help="Index of GPU to use", default=None)
 
 # TODO: Harsha, bear in mind that this needs to go in the public version...
-parser.add_argument("--skip", action="store_true", dest="skip_flag") 
+parser.add_argument("--skip", action="store_true", dest="skip_flag")
 parser.add_argument(
     "--multiply_factor",
     type=int,
@@ -381,8 +382,10 @@ for n in np.arange(Nphotos):
         Y = scipy.io.loadmat(d_s[n])["LABELS"]
     else:
         Y = np.load(d_s[n])
-    print(f"Photo {n + 1} has {len(np.unique(Y))-1} slices (CCs)") # Eugenio added -1 to account for zero
-    total_slice_count += (len(np.unique(Y)) - 1)
+    print(
+        f"Photo {n + 1} has {len(np.unique(Y))-1} slices (CCs)"
+    )  # Eugenio added -1 to account for zero
+    total_slice_count += len(np.unique(Y)) - 1
 
     for l in 1 + np.arange(np.max(Y)):
         mask, cropping = my.cropLabelVol(Y == l, np.round(5 / photo_res))
@@ -587,28 +590,27 @@ else:
         + " >/dev/null"
     )
     if a > 0:
-        raise Exception(
-            "error in mris_convert... is FreeSurfer sourced?"
-        )
+        raise Exception("error in mris_convert... is FreeSurfer sourced?")
 
     print()
     # Read in and fill in missing metadata if needed (eg if STL file)
-    P, T, meta = nib.freesurfer.read_geometry(input_mesh_converted, read_metadata=True)
-    if meta['valid'][0]=='0':
-        meta['valid'] = '1  # volume info valid'
-        meta['filename'] = ''
-        meta['volume'] = np.array([256,256,256]).astype(int)
-        meta['voxelsize'] = np.array([1.0, 1.0, 1.0])
-        meta['xras'] = np.array([-1.0, 0.0, 0.0])
-        meta['yras'] = np.array([0.0, 0.0, -1.0])
-        meta['zras'] = np.array([0.0, 1.0, 0.0])
-        meta['cras'] = np.array([0.0, 0.0, 0.0])
-
+    P, T, meta = nib.freesurfer.read_geometry(
+        input_mesh_converted, read_metadata=True
+    )
+    if meta["valid"][0] == "0":
+        meta["valid"] = "1  # volume info valid"
+        meta["filename"] = ""
+        meta["volume"] = np.array([256, 256, 256]).astype(int)
+        meta["voxelsize"] = np.array([1.0, 1.0, 1.0])
+        meta["xras"] = np.array([-1.0, 0.0, 0.0])
+        meta["yras"] = np.array([0.0, 0.0, -1.0])
+        meta["zras"] = np.array([0.0, 1.0, 0.0])
+        meta["cras"] = np.array([0.0, 0.0, 0.0])
 
     # Apply rotation using provided key vertices, if provided
     # https://towardsdatascience.com/the-definitive-procedure-for-aligning-two-sets-of-3d-points-with-the-kabsch-algorithm-a7ec2126c87e
     if options.mesh_reorient_with_indices is None:
-        print('No indices were provided to reorient mesh; just copying over...')
+        print("No indices were provided to reorient mesh; just copying over...")
         a = os.system(
             "cp "
             + input_mesh_converted
@@ -617,26 +619,28 @@ else:
             + " >/dev/null "
         )
         if a > 0:
-            raise Exception(
-                "error copying mesh"
-            )
+            raise Exception("error copying mesh")
     else:
-        print('Reorienting mesh with provided vertices')
+        print("Reorienting mesh with provided vertices")
         idx = np.zeros(3).astype(int)
         aux = options.mesh_reorient_with_indices.split(",")
         for i in range(len(idx)):
             idx[i] = int(aux[i])
-        K = P[idx,:]
+        K = P[idx, :]
         K = K - np.mean(K, axis=0)
 
-        if True: # rough RAS aligment, already demeaned!
-            Kref = np.array([[0, 85, -20],
-                             [0, -80, -25],
-                             [0, -5, 45]]).astype(float)
-        else: # precomputed from rh.white
-            Kref = np.array([[5.64194918,  77.57227325, 10.32956219],
-                             [1.60726917, -90.65991211, -0.76444769],
-                             [3.86025476, -13.81834793, 69.90812683]])
+        if True:  # rough RAS aligment, already demeaned!
+            Kref = np.array([[0, 85, -20], [0, -80, -25], [0, -5, 45]]).astype(
+                float
+            )
+        else:  # precomputed from rh.white
+            Kref = np.array(
+                [
+                    [5.64194918, 77.57227325, 10.32956219],
+                    [1.60726917, -90.65991211, -0.76444769],
+                    [3.86025476, -13.81834793, 69.90812683],
+                ]
+            )
             Kref = Kref - np.mean(Kref, axis=0)
 
         H = np.transpose(Kref) @ K
@@ -651,7 +655,9 @@ else:
         P = P - np.mean(P, axis=0)
         P = P @ R
         meta["cras"][:] = 0
-        nib.freesurfer.write_geometry(input_mesh_reoriented, P, T, volume_info=meta)
+        nib.freesurfer.write_geometry(
+            input_mesh_reoriented, P, T, volume_info=meta
+        )
 
     # Fill in the mesh
     print("Filling in mesh to obtain binary volume")
@@ -916,7 +922,6 @@ else:
     )
     Pmesh += meta_mesh["cras"]  # ** CRUCIAL **
     meta_mesh["cras"][:] = 0
-
 
     # And finally, take the gradient of the photos
     for s in range(Nscales):
