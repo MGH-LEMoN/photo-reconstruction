@@ -7,8 +7,8 @@
 ##SBATCH --cpus-per-task=1
 ##SBATCH --mem=32G
 #SBATCH --time=0-02:00:00
-#SBATCH --output="./logs/hcp-recon-20220601/%x.out"
-#SBATCH --error="./logs/hcp-recon-20220601/%x.err"
+#SBATCH --output="./logs/mgh-recon-20221120/%x.out"
+#SBATCH --error="./logs/mgh-recon-20221120/%x.err"
 #SBATCH --mail-user=hvgazula@umich.edu
 #SBATCH --mail-type=FAIL
 

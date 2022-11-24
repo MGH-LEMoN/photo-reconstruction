@@ -53,37 +53,29 @@ uw_recon:
 	done;
 	
 ## mgh_recon: Run reconstructions on MGH data (with reference surface)
-mgh_recon: SID = 2629_left 2605_left 2607_left 2614_left 2615_left 2619_left 2621_left 2624_left 2629_left 2630_left 2635_left 2657_left 2663_left 2668_left 2687_left 2689_left 
-# whole = 2604_whole 2628_whole 2644_whole 2661_whole 2675_whole
-# right = 2618_right 2623_right 2627_right 2637_right 2638_right 2639_right 2642_right 2648_right 2683_right 2691_right
-mgh_recon: SKIP_SLICE = $(shell seq 1 1)
+mgh_recon: SID = `ls -d1 /cluster/vive/MGH_photo_recon/*whole/ | xargs -n 1 basename`
 mgh_recon: CODE_DIR = /space/calico/1/users/Harsha/photo-reconstruction
 mgh_recon: DATA_DIR = /cluster/vive/MGH_photo_recon
 mgh_recon: OUT_DIR = $(DATA_DIR)
 mgh_recon: REF_KEY = surface
-mgh_recon: SAMPLE_LEFT = /autofs/cluster/vive/prob_atlases/onlyCerebrum.left_hemi.smoothed.nii.gz
-mgh_recon: SAMPLE_RIGHT = /autofs/cluster/vive/prob_atlases/onlyCerebrum.right_hemi.smoothed.nii.gz
-mgh_recon: SAMPLE_WHOLE = /autofs/cluster/vive/prob_atlases/onlyCerebrum.smoothed.nii.gz
 mgh_recon: MESH_COORDINATES = /cluster/vive/MGH_photo_recon/mgh_mesh_coordinates.csv
-mgh_recon: CMD = sbatch --job-name=$(REF_KEY)-$$skip-$$p submit.sh
-# {echo | python | sbatch --job-name=$(REF_KEY)-$$skip-$$p submit.sh} 
+mgh_recon: CMD = sbatch --job-name=$(REF_KEY)-$$sid submit.sh
+# {echo | python | sbatch --job-name=$(REF_KEY)-$$sid submit.sh} 
 mgh_recon:
-	mkdir -p $(CODE_DIR)/logs/mgh-recon-20220926
+	mkdir -p $(CODE_DIR)/logs/mgh-recon-20221120
 	for sid in $(SID); do \
 		VERTICES=`cat $(MESH_COORDINATES) | grep \`echo $$sid | cut -d _ -f 1\` | cut -d , -f2-4`
-		for skip in $(SKIP_SLICE); do \
-			echo $(CODE_DIR)/scripts/3d_photo_reconstruction.py \
-			--input_photo_dir $(DATA_DIR)/$$sid/deformed \
-			--input_segmentation_dir $(DATA_DIR)/$$sid/connected_components \
-			--ref_surface $(DATA_DIR)/$$sid/mesh/$$sid.stl \
-			--mesh_reorient_with_indices $$VERTICES \
-			--photos_of_posterior_side \
-			--allow_z_stretch \
-			--slice_thickness 10 \
-			--photo_resolution 0.1 \
-			--output_directory $(OUT_DIR)/$$sid/recon_new \
-			--gpu 0; \
-		done; \
+		$(CMD) $(CODE_DIR)/scripts/3d_photo_reconstruction.py \
+		--input_photo_dir $(DATA_DIR)/$$sid/deformed \
+		--input_segmentation_dir $(DATA_DIR)/$$sid/connected_components \
+		--ref_surface $(DATA_DIR)/$$sid/mesh/$$sid.stl \
+		--mesh_reorient_with_indices $$VERTICES \
+		--photos_of_posterior_side \
+		--allow_z_stretch \
+		--slice_thickness 10 \
+		--photo_resolution 0.1 \
+		--output_directory $(OUT_DIR)/$$sid/recon_202212 \
+		--gpu 0; \
 	done;
 
 # propagate_gt: Propagate ground truth labels to reconstruction space
