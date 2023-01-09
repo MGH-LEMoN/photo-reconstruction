@@ -19,7 +19,7 @@ echo 'Node:' $HOSTNAME
 echo "$@"
 start=$(date +%s)
 
-fspython "$@"
+"$@"
 
 end=$(date +%s)
 echo 'End time:' `date`

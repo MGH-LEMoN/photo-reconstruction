@@ -65,7 +65,7 @@ mgh_recon:
 	mkdir -p $(CODE_DIR)/logs/mgh-recon-20221120
 	for sid in $(SID); do \
 		VERTICES=`cat $(MESH_COORDINATES) | grep \`echo $$sid | cut -d _ -f 1\` | cut -d , -f2-4`
-		$(CMD) $(CODE_DIR)/scripts/3d_photo_reconstruction.py \
+		$(CMD) mri_3d_photo_recon \
 		--input_photo_dir $(DATA_DIR)/$$sid/deformed \
 		--input_segmentation_dir $(DATA_DIR)/$$sid/connected_components \
 		--ref_surface $(DATA_DIR)/$$sid/mesh/$$sid.stl \
