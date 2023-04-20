@@ -37,7 +37,7 @@ uw_%: CMD = sbatch --job-name=$(REF_KEY)-$$skip-$$sid submit.sh
 uw_recon:
 	for sid in $(SID); do \
 		for skip in $(SKIP_SLICE); do \
-			$(CMD) scripts/3d_photo_reconstruction.py \
+			$(CMD) python scripts/3d_photo_reconstruction.py \
 			--input_photo_dir $(DATA_DIR)/Photo_data/$$sid/$$sid\_MATLAB \
 			--input_segmentation_dir $(DATA_DIR)/Photo_data/$$sid/$$sid\_MATLAB \
 			$(REF_VALUE) \
@@ -52,29 +52,47 @@ uw_recon:
 		done; \
 	done;
 	
-## mgh_recon: Run reconstructions on MGH data (with reference surface)
-mgh_recon: SID = `ls -d1 /cluster/vive/MGH_photo_recon/*whole/ | xargs -n 1 basename`
+## mgh_recon: Run reconstructions on MGH data (with surface/atlas reference)
+mgh_recon: SID = `ls -d1 /cluster/vive/MGH_photo_recon/2*_{whole,left,right}/ | xargs -n 1 basename`
 mgh_recon: CODE_DIR = /space/calico/1/users/Harsha/photo-reconstruction
 mgh_recon: DATA_DIR = /cluster/vive/MGH_photo_recon
 mgh_recon: OUT_DIR = $(DATA_DIR)
 mgh_recon: REF_KEY = surface
-mgh_recon: MESH_COORDINATES = /cluster/vive/MGH_photo_recon/mgh_mesh_coordinates.csv
-mgh_recon: CMD = sbatch --job-name=$(REF_KEY)-$$sid submit.sh
+# {surface | atlas}
+mgh_recon: MESH_COORDINATES = /cluster/vive/MGH_photo_recon/mgh_mesh_coordinates_ratings.csv
+mgh_recon: CMD = sbatch --job-name=$$sid-$(REF_KEY) submit.sh
 # {echo | python | sbatch --job-name=$(REF_KEY)-$$sid submit.sh} 
 mgh_recon:
-	mkdir -p $(CODE_DIR)/logs/mgh-recon-20221120
+	mkdir -p ./logs/mgh-recon-$(DT)
 	for sid in $(SID); do \
-		VERTICES=`cat $(MESH_COORDINATES) | grep \`echo $$sid | cut -d _ -f 1\` | cut -d , -f2-4`
-		$(CMD) mri_3d_photo_recon \
+		VERTICES=`cat $(MESH_COORDINATES) | grep $$sid | cut -d _ -f2 | cut -d , -f2-4`
+		
+		if [[ -z "$$VERTICES" ]] || [[ "$$VERTICES" == "0,0,0" ]] ; then
+			echo "$$sid - empty vertices"
+			continue
+		fi
+
+		if [[ $(REF_KEY) == "surface" ]]; then
+			args="--ref_surface $(DATA_DIR)/$$sid/mesh/$$sid.stl --mesh_reorient_with_indices $$VERTICES"
+		elif [[ $(REF_KEY) == "atlas" ]]; then
+			if [[ "$$sid" == *_"whole" ]]; then
+				args="--ref_soft_mask /cluster/vive/prob_atlases/onlyCerebrum.nii.gz"
+			elif [[ "$$sid" == *_"left" ]]; then
+				args="--ref_soft_mask /cluster/vive/prob_atlases/onlyCerebrum.left_hemi.nii.gz"
+			elif [[ "$$sid" == *_"right" ]]; then
+				args="--ref_soft_mask /cluster/vive/prob_atlases/onlyCerebrum.right_hemi.nii.gz"
+			fi
+		fi
+
+		$(CMD) fspython $(CODE_DIR)/scripts/mri_3d_photo_recon \
 		--input_photo_dir $(DATA_DIR)/$$sid/deformed \
 		--input_segmentation_dir $(DATA_DIR)/$$sid/connected_components \
-		--ref_surface $(DATA_DIR)/$$sid/mesh/$$sid.stl \
-		--mesh_reorient_with_indices $$VERTICES \
+		$$args \
 		--photos_of_posterior_side \
 		--allow_z_stretch \
 		--slice_thickness 10 \
 		--photo_resolution 0.1 \
-		--output_directory $(OUT_DIR)/$$sid/recon_202212 \
+		--output_directory $(OUT_DIR)/$$sid/recon_$(REF_KEY)_$(DT) \
 		--gpu 0; \
 	done;
 
