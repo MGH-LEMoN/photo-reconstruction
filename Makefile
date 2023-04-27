@@ -252,23 +252,3 @@ hcpcpu_recon:
     		sleep 0;\
 		fi
 	done
-
-hcpcpu_fail:
-	for item in `find ./logs/hcp-recon/skip-08-r2 -name "*.err" ! -size 0  | sort`; do \
-		subid=`basename $$item`
-		IFS='_.'
-		read -r a subid c <<< $$subid
-		IFS=' '
-		sbatch --job-name=subject_$$subid submit-cpu.sh scripts/3d_photo_reconstruction.py \
-		--input_photo_dir $(PRJCT_DIR)/subject_$$subid/photo_dir \
-		--input_segmentation_dir $(PRJCT_DIR)/subject_$$subid/photo_dir \
-		--ref_mask $(PRJCT_DIR)/subject_$$subid/subject_$$subid.mri.mask.mgz \
-		--photos_of_posterior_side \
-		--allow_z_stretch \
-		--order_posterior_to_anterior \
-		--slice_thickness $(THICK) \
-		--photo_resolution 0.7 \
-		--output_directory $(PRJCT_DIR)/subject_$$subid/ref_mask_skip_$(SKIP) \
-		--gpu 0
-	done
-

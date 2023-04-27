@@ -6,7 +6,7 @@ then
     echo "Directory $PYTHONPATH exists." 
 else
     # clone repository
-    git clone https://github.com/hvgazula/photo-reconstruction
+    git clone https://github.com/MGH-LEMoN/photo-reconstruction
 fi
 
 export UW_photo_recon=$PYTHONPATH/data/UW_photo_recon
@@ -27,4 +27,3 @@ else
 fi
 
 echo "Go to Makefile for more information."
-
