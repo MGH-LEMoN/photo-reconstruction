@@ -2,8 +2,12 @@ matplotlib==3.5.3
 nibabel==4.0.1
 numpy==1.23.2
 opencv_python==4.6.0.66
+pandas==1.4.4
 Pillow==9.5.0
+scikit_image==0.19.3
 scipy==1.9.1
+seaborn==0.12.2
+skimage==0.0
 tabulate==0.8.10
 torch==1.12.1+cu116
 trimesh==3.15.3

@@ -7,7 +7,7 @@ __pycache__
 
 misc
 
-data/uw_photo
+data/*
 results
 logs
 trash
