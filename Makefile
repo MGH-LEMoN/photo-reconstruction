@@ -228,3 +228,9 @@ test-mlsc:
 # Notice the use \" in this compared to the mlsc command
 test-launchpad:
 	pbsubmit -q matlab -n 2 -O fact1.out -E fact1.err -m hvgazula@umich.edu -e -c "matlab -nodisplay -nosplash -nojvm -r \"cd('misc'); fact('5')\""
+
+# ## mask-to-surface: Convert binary mask to atlas
+mask-to-surface:
+	for sid in `ls -d1 /cluster/vive/UW_photo_recon/Photo_data/*-*/ | xargs -n 1 basename`; do
+		mri_mc /cluster/vive/UW_photo_recon/Photo_data/$$sid.rotated_cerebrum.mgz 128 /cluster/vive/UW_photo_recon/Photo_data/$$sid.surface.surf
+	done;
