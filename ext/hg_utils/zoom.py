@@ -1,5 +1,4 @@
 import os
-import subprocess
 from time import time
 
 import nibabel as nib
@@ -8,38 +7,6 @@ from scipy.ndimage import zoom
 from tabulate import tabulate
 
 LABELS_SHAPE = [256, 256, 256]
-
-# https://stackoverflow.com/questions/14989858/get-the-current-git-hash-in-a-python-script
-def get_git_revision_hash() -> str:
-    return subprocess.check_output(["git", "rev-parse", "HEAD"]).decode("ascii").strip()
-
-
-def get_git_revision_branch() -> str:
-    return (
-        subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"])
-        .decode("ascii")
-        .strip()
-    )
-
-    # return (
-    #     subprocess.check_output(["git", "branch", "--show-current"])
-    #     .decode("ascii")
-    #     .strip()
-    # )
-
-
-def get_git_revision_short_hash() -> str:
-    return (
-        subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
-        .decode("ascii")
-        .strip()
-    )
-
-
-def get_git_revision_url():
-    return (
-        f"https://www.github.com/hvgazula/SynthSeg/tree/{get_git_revision_short_hash()}"
-    )
 
 
 def print_shapes(input, factors):
@@ -67,7 +34,9 @@ def generate_small_bias(spacing):
     bias_shape_factor = [0.025, 1 / spacing, 0.025]
     bias_field_std = 0.5
 
-    small_bias_size = np.ceil(np.multiply(LABELS_SHAPE, bias_shape_factor)).astype(int)
+    small_bias_size = np.ceil(
+        np.multiply(LABELS_SHAPE, bias_shape_factor)
+    ).astype(int)
 
     small_bias = (
         bias_field_std
@@ -81,7 +50,9 @@ def generate_small_bias(spacing):
 
 
 # @timer_func
-def scipy_zoom(small_vol, factors, target_shape=None, grid_mode=True, flag="bias"):
+def scipy_zoom(
+    small_vol, factors, target_shape=None, grid_mode=True, flag="bias"
+):
     if flag == "def":
         factors = factors + [1]
 
@@ -171,7 +142,9 @@ def bias_einsum_zoom(small_bias, factors, target_shape=None, grid_mode=True):
     letter = {0: "i", 1: "j", 2: "k"}
     for idx, (big, small) in enumerate(zip((Bx, By, Bz), (Sx, Sy, Sz))):
         Xs = np.arange(big)
-        interp_factor = (1 - factors[idx]) / (2 * factors[idx]) if grid_mode else 0
+        interp_factor = (
+            (1 - factors[idx]) / (2 * factors[idx]) if grid_mode else 0
+        )
         Xs_prime = interp_factor + Xs / factors[idx]
 
         f = np.maximum(0, np.floor(Xs_prime).astype(int))
@@ -188,20 +161,26 @@ def bias_einsum_zoom(small_bias, factors, target_shape=None, grid_mode=True):
 
 
 # @timer_func
-def einsum_zoom(small_bias, factors, target_shape=None, grid_mode=True, flag="bias"):
+def einsum_zoom(
+    small_bias, factors, target_shape=None, grid_mode=True, flag="bias"
+):
     small_shape = small_bias.shape
 
     if len(small_shape) == 4:
         small_shape = small_shape[:-1]
 
-    Bx, By, Bz = target_shape if target_shape else np.multiply(small_shape, factors)
+    Bx, By, Bz = (
+        target_shape if target_shape else np.multiply(small_shape, factors)
+    )
 
     I = small_bias
     letter = {0: "i", 1: "j", 2: "k"}
     for idx, (big, small) in enumerate(zip((Bx, By, Bz), small_shape)):
         Xs = np.arange(big)
 
-        interp_factor = (1 - factors[idx]) / (2 * factors[idx]) if grid_mode else 0
+        interp_factor = (
+            (1 - factors[idx]) / (2 * factors[idx]) if grid_mode else 0
+        )
         Xs_prime = interp_factor + Xs / factors[idx]
 
         f = np.maximum(0, np.floor(Xs_prime).astype(int))
@@ -226,7 +205,9 @@ def einsum_zoom(small_bias, factors, target_shape=None, grid_mode=True, flag="bi
 
 
 # @timer_func
-def prod_zoom(small_bias, factors, target_shape=None, grid_mode=True, flag="bias"):
+def prod_zoom(
+    small_bias, factors, target_shape=None, grid_mode=True, flag="bias"
+):
     small_shape = small_bias.shape
 
     if len(small_shape) == 4:
@@ -235,14 +216,18 @@ def prod_zoom(small_bias, factors, target_shape=None, grid_mode=True, flag="bias
     else:
         range_k = 3
 
-    Bx, By, Bz = target_shape if target_shape else np.multiply(small_shape, factors)
+    Bx, By, Bz = (
+        target_shape if target_shape else np.multiply(small_shape, factors)
+    )
 
     I = small_bias
     for idx, (big, small) in enumerate(zip((Bx, By, Bz), small_shape)):
         some_factor = small_shape[idx]
         Xs = np.arange(big)
 
-        interp_factor = (1 - factors[idx]) / (2 * factors[idx]) if grid_mode else 0
+        interp_factor = (
+            (1 - factors[idx]) / (2 * factors[idx]) if grid_mode else 0
+        )
         Xs_prime = interp_factor + Xs / factors[idx]
 
         f = np.maximum(0, np.floor(Xs_prime).astype(int))
@@ -264,17 +249,23 @@ def prod_zoom(small_bias, factors, target_shape=None, grid_mode=True, flag="bias
 
 
 # @timer_func
-def def_prod_zoom(small_bias, factors, target_shape=None, grid_mode=True, flag=None):
+def def_prod_zoom(
+    small_bias, factors, target_shape=None, grid_mode=True, flag=None
+):
     Sx, Sy, Sz = small_bias.shape[:-1]
     Bx, By, Bz = (
-        target_shape if target_shape else np.multiply(small_bias.shape[:-1], factors)
+        target_shape
+        if target_shape
+        else np.multiply(small_bias.shape[:-1], factors)
     )
 
     I = small_bias
     for idx, (big, small) in enumerate(zip((Bx, By, Bz), (Sx, Sy, Sz))):
         Xs = np.arange(big)
 
-        interp_factor = (1 - factors[idx]) / (2 * factors[idx]) if grid_mode else 0
+        interp_factor = (
+            (1 - factors[idx]) / (2 * factors[idx]) if grid_mode else 0
+        )
         Xs_prime = interp_factor + Xs / factors[idx]
 
         f = np.maximum(0, np.floor(Xs_prime).astype(int))
@@ -387,7 +378,9 @@ def save_images(some_list, idx, header, spacing, flag=None):
 if __name__ == "__main__":
     header = ["scipy", "for_loop", "multiply", "einsum"]
     os.makedirs(os.path.join(os.getcwd(), "images", "bias"), exist_ok=True)
-    os.makedirs(os.path.join(os.getcwd(), "images", "deformation"), exist_ok=True)
+    os.makedirs(
+        os.path.join(os.getcwd(), "images", "deformation"), exist_ok=True
+    )
 
     print(f"Labels Shape is: {LABELS_SHAPE}\n")
 
@@ -404,7 +397,9 @@ if __name__ == "__main__":
             bias_result_list = []
             print()
             for func in [scipy_zoom, bias_jei_zoom, einsum_zoom, prod_zoom]:
-                result = func(small_bias, bias_factors, target_shape=LABELS_SHAPE)
+                result = func(
+                    small_bias, bias_factors, target_shape=LABELS_SHAPE
+                )
                 bias_result_list.append(result)
 
             if test == 0:

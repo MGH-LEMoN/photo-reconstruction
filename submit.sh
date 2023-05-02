@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --account=lcnrtx
-#SBATCH --partition=rtx8000,lcnrtx
+#SBATCH --partition=rtx8000,rtx6000,lcnrtx
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --gpus=1

@@ -28,12 +28,30 @@ def get_git_revision_hash() -> str:
     )
 
 
+def get_git_revision_branch() -> str:
+    return (
+        subprocess.check_output(["git", "rev-parse", "--abbrev-ref", "HEAD"])
+        .decode("ascii")
+        .strip()
+    )
+
+    # return (
+    #     subprocess.check_output(["git", "branch", "--show-current"])
+    #     .decode("ascii")
+    #     .strip()
+    # )
+
+
 def get_git_revision_short_hash() -> str:
     return (
         subprocess.check_output(["git", "rev-parse", "--short", "HEAD"])
         .decode("ascii")
         .strip()
     )
+
+
+def get_git_revision_url():
+    return f"https://github.com/MGH-LEMoN/Photo-SynthSeg/tree/{get_git_revision_short_hash()}"
 
 
 if __name__ == "__main__":

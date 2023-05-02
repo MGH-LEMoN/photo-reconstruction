@@ -12,7 +12,7 @@ from tabulate import tabulate
 import ext.my_functions as my
 
 PRJCT_KEY = "uw_photo/Photo_data"
-PRJCT_DIR = "/space/calico/1/users/Harsha/photo-reconstruction/"
+PRJCT_DIR = os.getenv("PYTHONPATH")
 DATA_DIR = os.path.join(PRJCT_DIR, "data", PRJCT_KEY)
 RESULTS_DIR = os.path.join(PRJCT_DIR, "results", PRJCT_KEY)
 
@@ -24,7 +24,7 @@ def grab_diff_photos(ref_string=None):
         ref_string (str): options include 'image', 'hard', 'soft'
     """
     prjct_key = "uw_photo/Photo_data"
-    prjct_dir = "/space/calico/1/users/Harsha/photo-reconstruction/"
+    prjct_dir = os.getenv("PYTHONPATH")
     data_dir = os.path.join(prjct_dir, "data", prjct_key)
     results_dir = os.path.join(prjct_dir, "results")
 
@@ -39,7 +39,9 @@ def grab_diff_photos(ref_string=None):
                 ref_folder_string = f"ref_{ref_string}_skip_{skip_val}"
                 ref_folder = os.path.join(subject, ref_folder_string)
                 diff_file = glob.glob(
-                    os.path.join(ref_folder, "propagated_labels", "*difference*")
+                    os.path.join(
+                        ref_folder, "propagated_labels", "*difference*"
+                    )
                 )
 
                 if len(diff_file) == 0:
@@ -50,13 +52,20 @@ def grab_diff_photos(ref_string=None):
                 image = Image.open(src_file)
                 draw = ImageDraw.Draw(image)
                 draw.text(
-                    (image.size[0] // 2, 10), print_text, fill="white", align="right"
+                    (image.size[0] // 2, 10),
+                    print_text,
+                    fill="white",
+                    align="right",
                 )
                 # imagelist is the list with all image filenames
                 im_list.append(image)
 
     im_list[0].save(
-        dst_pdf, "PDF", resolution=100.0, save_all=True, append_images=im_list[1:]
+        dst_pdf,
+        "PDF",
+        resolution=100.0,
+        save_all=True,
+        append_images=im_list[1:],
     )
 
 
@@ -73,7 +82,10 @@ def return_common_subjects(*args):
         _type_: _description_
     """
     args = [
-        {os.path.split(input_file)[-1][:7]: input_file for input_file in file_list}
+        {
+            os.path.split(input_file)[-1][:7]: input_file
+            for input_file in file_list
+        }
         for file_list in args
     ]
 
@@ -113,10 +125,16 @@ def print_slice_idx_all():
     henry_results_hard = os.path.join(henry_results, "Results_hard")
     henry_results_soft = os.path.join(henry_results, "Results_soft")
 
-    hard_subject_list = sorted(glob.glob(os.path.join(henry_results_hard, "*-*")))
-    soft_subject_list = sorted(glob.glob(os.path.join(henry_results_soft, "*-*")))
+    hard_subject_list = sorted(
+        glob.glob(os.path.join(henry_results_hard, "*-*"))
+    )
+    soft_subject_list = sorted(
+        glob.glob(os.path.join(henry_results_soft, "*-*"))
+    )
 
-    common_subject_list = return_common_subjects(hard_subject_list, soft_subject_list)
+    common_subject_list = return_common_subjects(
+        hard_subject_list, soft_subject_list
+    )
 
     subject_gt_idx = []
     for hard_subject, soft_subject in zip(*common_subject_list):
@@ -143,7 +161,14 @@ def print_slice_idx_all():
         ref_seg5 = os.path.join(soft_subject, soft_seg_merged_gt)
 
         subject_row = []
-        for file in [hard_recon, ref_seg1, ref_seg2, soft_recon, ref_seg4, ref_seg5]:
+        for file in [
+            hard_recon,
+            ref_seg1,
+            ref_seg2,
+            soft_recon,
+            ref_seg4,
+            ref_seg5,
+        ]:
             if os.path.isfile(file):
                 subject_row.append(my.MRIread(file, im_only=True).shape)
                 subject_row.append(get_first_non_empty_slice(file))
@@ -203,7 +228,9 @@ def get_gt_slice_idx(seg_vol, recon_vol=None):
             recon_vol = my.MRIread(recon_vol, im_only=True)
 
             # index of first nonzero slice (or # of padded slices)
-            slice_idx_recon = np.min(np.where(recon_vol[..., 0].sum(0).sum(0) > 1.0))
+            slice_idx_recon = np.min(
+                np.where(recon_vol[..., 0].sum(0).sum(0) > 1.0)
+            )
             slice_idx -= slice_idx_recon
     except Exception:
         slice_idx = "DNE"
@@ -220,7 +247,9 @@ def print_uw_gt_map():
     henry_results_hard = os.path.join(henry_results, "Results_hard")
 
     # list all folders/subjects
-    hard_subject_list = sorted(glob.glob(os.path.join(henry_results_hard, "*-*")))
+    hard_subject_list = sorted(
+        glob.glob(os.path.join(henry_results_hard, "*-*"))
+    )
 
     subject_gt_idx = []
     for hard_subject in hard_subject_list:
@@ -257,14 +286,22 @@ def print_uw_gt_map():
 def get_hcp_subject_list():
     """_summary_"""
     t1_files = glob.glob(
-        os.path.join("/space/calico/1/users/Harsha/SynthSeg/data/4harshaHCP", "*.T1.*")
+        os.path.join(
+            "/space/calico/1/users/Harsha/SynthSeg/data/4harshaHCP", "*.T1.*"
+        )
     )
     t2_files = glob.glob(
-        os.path.join("/space/calico/1/users/Harsha/SynthSeg/data/4harshaHCP", "*.T2.*")
+        os.path.join(
+            "/space/calico/1/users/Harsha/SynthSeg/data/4harshaHCP", "*.T2.*"
+        )
     )
 
-    t1_files = [re.findall("[0-9]+", os.path.basename(file))[0] for file in t1_files]
-    t2_files = [re.findall("[0-9]+", os.path.basename(file))[0] for file in t2_files]
+    t1_files = [
+        re.findall("[0-9]+", os.path.basename(file))[0] for file in t1_files
+    ]
+    t2_files = [
+        re.findall("[0-9]+", os.path.basename(file))[0] for file in t2_files
+    ]
 
     common_subjects = sorted(set(t1_files).intersection(t2_files))
 
@@ -351,9 +388,7 @@ def recon_ref_image():
 
 def hcp_recon(skip=6):
     """python version of the make target 'hcp_recon'"""
-    prjct_dir = (
-        f"/space/calico/1/users/Harsha/SynthSeg/results/4harshaHCP-skip-{skip:02d}-r3"
-    )
+    prjct_dir = f"/space/calico/1/users/Harsha/SynthSeg/results/4harshaHCP-skip-{skip:02d}-r3"
     subjects = os.listdir(prjct_dir)
 
     for subject in subjects:
