@@ -232,5 +232,9 @@ test-launchpad:
 # ## mask-to-surface: Convert binary mask to atlas
 mask-to-surface:
 	for sid in `ls -d1 /cluster/vive/UW_photo_recon/Photo_data/*-*/ | xargs -n 1 basename`; do
-		mri_mc /cluster/vive/UW_photo_recon/Photo_data/$$sid.rotated_cerebrum.mgz 128 /cluster/vive/UW_photo_recon/Photo_data/$$sid.surface.surf
+	FILE=/cluster/vive/UW_photo_recon/FLAIR_Scan_Data/$$sid.rotated_cerebrum.mgz
+	if [ -f $(FILE) ]; then
+		echo mri_mc $$FILE 128 /tmp/tmp.surf;
+		echo mris_smooth /tmp/tmp.surf /cluster/vive/UW_photo_recon/FLAIR_Scan_Data/$$sid.smooth.surf;
+	fi
 	done;
