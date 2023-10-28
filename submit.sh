@@ -6,9 +6,9 @@
 #SBATCH --gpus=1
 ##SBATCH --cpus-per-task=1
 ##SBATCH --mem=32G
-#SBATCH --time=0-02:00:00
-#SBATCH --output="./logs/mgh-recon/%x.out"
-#SBATCH --error="./logs/mgh-recon/%x.err"
+#SBATCH --time=0-01:00:00
+#SBATCH --output="./logs/hcp-recon-diana-20231027/%x.out"
+#SBATCH --error="./logs/hcp-recon-diana-20231027/%x.err"
 #SBATCH --mail-user=hvgazula@umich.edu
 #SBATCH --mail-type=FAIL
 

@@ -131,25 +131,26 @@ uw_gt_propagate:
 gt_slice_idx:
 	python -c "from scripts import misc_utils; misc_utils.print_gt_slice_idx()"
 
-hcp_%: SKIP=04
-hcp_%: THICK=2.8
-hcp_%: JITTER=$(shell seq 3 -1 1)
+hcp_%: PRJCT_DIR=/space/calico/1/users/Harsha/photo-reconstruction
+hcp_%: SKIP=14
+hcp_%: THICK=9.8
+hcp_%: JITTER=$(shell seq 0 -1 0)
 hcp_recon:
 	COUNTER=0
 	for jitter in $(JITTER); do \
-		PRJCT_DIR=/space/calico/1/users/Harsha/SynthSeg/results/hcp-results-20220615/4harshaHCP-skip-$(SKIP)-r$$jitter
-		for item in `ls -d $$PRJCT_DIR/*`; do
+		RESULTS_DIR=$(PRJCT_DIR)/results/4diana-hcp-recons/skip-$(SKIP)-r$$jitter
+		for item in `ls -d $$RESULTS_DIR/*`; do
 			subid=`basename $$item`
-			sbatch --job-name=skip-$(SKIP)-r$$jitter/$$subid submit.sh scripts/3d_photo_reconstruction.py \
+			sbatch --job-name=skip-$(SKIP)-r$$jitter/$$subid submit.sh python scripts/3d_photo_reconstruction_diana.py \
 				--input_photo_dir $$item/photo_dir \
 				--input_segmentation_dir $$item/photo_dir \
-				--ref_mask $$item/$$subid.mri.mask.mgz \
+				--ref_soft_mask $(PRJCT_DIR)/data/binary_soft_atlas.mgz \
 				--photos_of_posterior_side \
 				--allow_z_stretch \
 				--order_posterior_to_anterior \
 				--slice_thickness $(THICK) \
 				--photo_resolution 0.7 \
-				--output_directory $$item/ref_mask_skip_$(SKIP) \
+				--output_directory $$item/ref_soft_mask_skip_$(SKIP) \
 				--gpu 0;
 			let COUNTER=COUNTER+1
 			@if (( $$COUNTER % 100 == 0 )); then\
@@ -178,28 +179,28 @@ hcp_fail1:
 			done;
 		done < /space/calico/1/users/Harsha/SynthSeg/test_csv.csv
 
-hcp_%: SKIP=02
-hcp_%: THICK=1.4
-hcp_%: JITTER=1
-hcp_fail_new:
-	PRJCT_DIR=/space/calico/1/users/Harsha/SynthSeg/results/hcp-results-20220615/4harshaHCP-skip-$(SKIP)-r$(JITTER)
-	for item in `find ./logs/hcp-recon-20220615/skip-$(SKIP)-r$(JITTER)/ -name "*.out" -exec grep -L -e "freeview" {} +`; do \
-		subid=`basename $$item`
-		IFS='_.'
-		read -r a subid c <<< $$subid
-		IFS=' '
-		sbatch --job-name=skip-$(SKIP)-r$(JITTER)/subject_$$subid submit.sh scripts/3d_photo_reconstruction.py \
-				--input_photo_dir $$PRJCT_DIR/subject_$$subid/photo_dir \
-				--input_segmentation_dir $$PRJCT_DIR/subject_$$subid/photo_dir \
-				--ref_mask $$PRJCT_DIR/subject_$$subid/subject_$$subid.mri.mask.mgz \
-				--photos_of_posterior_side \
-				--allow_z_stretch \
-				--order_posterior_to_anterior \
-				--slice_thickness $(THICK) \
-				--photo_resolution 0.7 \
-				--output_directory $$PRJCT_DIR/subject_$$subid/ref_mask_skip_$(SKIP) \
-				--gpu 0
-	done
+# hcp_%: SKIP=02
+# hcp_%: THICK=1.4
+# hcp_%: JITTER=1
+# hcp_fail_new:
+# 	PRJCT_DIR=/space/calico/1/users/Harsha/SynthSeg/results/hcp-results-20220615/4harshaHCP-skip-$(SKIP)-r$(JITTER)
+# 	for item in `find ./logs/hcp-recon-20220615/skip-$(SKIP)-r$(JITTER)/ -name "*.out" -exec grep -L -e "freeview" {} +`; do \
+# 		subid=`basename $$item`
+# 		IFS='_.'
+# 		read -r a subid c <<< $$subid
+# 		IFS=' '
+# 		sbatch --job-name=skip-$(SKIP)-r$(JITTER)/subject_$$subid submit.sh scripts/3d_photo_reconstruction.py \
+# 				--input_photo_dir $$PRJCT_DIR/subject_$$subid/photo_dir \
+# 				--input_segmentation_dir $$PRJCT_DIR/subject_$$subid/photo_dir \
+# 				--ref_mask $$PRJCT_DIR/subject_$$subid/subject_$$subid.mri.mask.mgz \
+# 				--photos_of_posterior_side \
+# 				--allow_z_stretch \
+# 				--order_posterior_to_anterior \
+# 				--slice_thickness $(THICK) \
+# 				--photo_resolution 0.7 \
+# 				--output_directory $$PRJCT_DIR/subject_$$subid/ref_mask_skip_$(SKIP) \
+# 				--gpu 0
+# 	done
 
 propagate_gt: SKIP_SLICE := $(shell seq 1 4)
 propagate_gt: REF_DIR=/space/calico/1/users/Harsha/photo-reconstruction/data/uw_photo/recons/results_Henry/Results_hard
