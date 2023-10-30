@@ -9,17 +9,16 @@ from multiprocessing import Pool
 
 import numpy as np
 from PIL import Image
-from scipy.ndimage import affine_transform
-from scipy.ndimage.morphology import distance_transform_edt
+from scipy.ndimage import affine_transform, distance_transform_edt
 from skimage.transform import resize
 
 from ext.hg_utils import zoom
+from ext.lab2im import utils
 from ext.utils import (
     get_git_revision_branch,
     get_git_revision_short_hash,
     get_git_revision_url,
 )
-from ext.lab2im import utils
 
 # TODO: fix this function
 # def get_min_max_idx(t2_file):
@@ -76,9 +75,7 @@ def slice_ids_method2(args, t2_vol):
     first_nz_slice = non_zero_slice_ids[0] + 6
     last_nz_slice = non_zero_slice_ids[-1] - 6
 
-    slice_ids_of_interest = np.arange(
-        first_nz_slice, last_nz_slice + 1, args["SKIP"]
-    )
+    slice_ids_of_interest = np.arange(first_nz_slice, last_nz_slice + 1, args["SKIP"])
     return slice_ids_of_interest
 
 
@@ -107,9 +104,7 @@ def process_t1(args, t1_file, t1_name):
 
     # t1_rigid_mat = np.eye(t1_rigid_mat.shape[0])
 
-    t1_rigid_out = os.path.join(
-        args["out_dir"], t1_name, f"{t1_name}.rigid.npy"
-    )
+    t1_rigid_out = os.path.join(args["out_dir"], t1_name, f"{t1_name}.rigid.npy")
     np.save(t1_rigid_out, t1_rigid_mat)
 
     # 4. Open the T1, and premultiply the affine matrix of the header
@@ -129,9 +124,7 @@ def process_t1(args, t1_file, t1_name):
     R = resize(Rsmall, M.shape, order=3)
     mask = D < R
 
-    t1_out_path = os.path.join(
-        args["out_dir"], t1_name, f"{t1_name}.mri.mask.mgz"
-    )
+    t1_out_path = os.path.join(args["out_dir"], t1_name, f"{t1_name}.mri.mask.mgz")
     utils.save_volume(mask, new_aff, hdr, t1_out_path)
 
 
@@ -174,9 +167,7 @@ def create_slice_affine(affine_dir, t2_name, idx, curr_slice):
         translation=translation,
     )
     # to rotate around the center of the slice instead of the corner
-    slice_aff_mat = np.matmul(
-        translation_mat_2, np.matmul(aff_mat, translation_mat_1)
-    )
+    slice_aff_mat = np.matmul(translation_mat_2, np.matmul(aff_mat, translation_mat_1))
 
     # Save this matrix somewhere for evaluation later on eg as a numpy array
     slice_aff_out = os.path.join(affine_dir, f"{t2_name}.slice.{idx:03d}.npy")
@@ -299,9 +290,7 @@ def process_t2(args, t2_file, t2_name):
         # NOTE: (in hindsight) this rotation was a bad idea
         curr_slice = np.pad(np.rot90(curr_slice), 25)
 
-        slice_aff_mat = create_slice_affine(
-            affine_dir, t2_name, idx, curr_slice
-        )
+        slice_aff_mat = create_slice_affine(affine_dir, t2_name, idx, curr_slice)
 
         # Use this matrix to deform the slice
         deformed_slice = affine_transform(
@@ -454,9 +443,6 @@ def main():
     args = make_main_args()
     info_logger(args)
 
-    print("based on E email during hackathon")
-    print("Experiment 08/14/2022: Only for no jitter")
-    print("This is to test if the error is flat")
     print("t1_rigid_mat is not set to identity")
     print("slice extraction using method 2")
     MIN_SKIP, MAX_SKIP = 14, 14
