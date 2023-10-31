@@ -3,9 +3,9 @@ import glob
 import os
 
 HOME_DIR = "/space/calico/1/users/Harsha"
-NIFTYREG_DIR = HOME_DIR + "/niftyreg"
+NIFTYREG_APP_DIR = HOME_DIR + "/niftyreg/build/reg-apps"
 PRJCT_DIR = HOME_DIR + "/photo-reconstruction"
-DATA_DIR = HOME_DIR + "/data"
+DATA_DIR = PRJCT_DIR + "/data"
 SCRIPTS_DIR = PRJCT_DIR + "/scripts"
 MNI_TMPLT = (
     DATA_DIR
@@ -20,9 +20,6 @@ def main(subject_results):
     # subject_results = sorted(glob.glob(RESULTS_DIR + "/*"))
 
     # for each reconstruction
-    # wrap in list to avoid modifying the code a lot
-    subject_results = [subject_results]
-
     for subject in subject_results:
         # create folder for niftyreg command outputs
         NIFTY_OUTPUT_DIR = subject + "/niftreg_outputs"
@@ -31,16 +28,14 @@ def main(subject_results):
         # get t1, t2 and recon files
         t1_file = glob.glob(subject + "/*T1.nii.gz")[0]
         t2_file = glob.glob(subject + "/*T2.nii.gz")[0]
-        recon_file = glob.glob(subject + "/*photo_recon.mgz")[0]
+        recon_file = glob.glob(subject + "/ref_soft_mask_skip_14/photo_recon.mgz")[0]
 
         t1_name = os.path.basename(subject)
 
         # run synthsr on the reconstruction
         # get the command for this step from Diana
         synthsr_file = subject + f"/{t1_name}.SynthSR.nii.gz"
-        CMD_SynthSR = (
-            f"mri_synthsr --i {recon_file} --o {synthsr_file} --model {SYNTHSR_MODEL}"
-        )
+        CMD_SynthSR = f"mri_synthsr --i {recon_file} --o {synthsr_file} --model {SYNTHSR_MODEL} --cpu --threads 4"
         os.system(CMD_SynthSR)
 
         print()
@@ -59,9 +54,8 @@ def main(subject_results):
             lin_aff_file = (
                 NIFTY_OUTPUT_DIR + f"/{t1_name}.{file_type}.linear.affine.txt"
             )
-            CMD_01 = f"{NIFTYREG_DIR}/build/reg-apps/reg_aladin -ref {ref_file} -flo {MNI_TMPLT} -res {lin_res_file} -aff {lin_aff_file} -omp 4"
+            CMD_01 = f"{NIFTYREG_APP_DIR}/reg_aladin -ref {ref_file} -flo {MNI_TMPLT} -res {lin_res_file} -aff {lin_aff_file} -omp 4"
             os.system(CMD_01)
-            
 
             # setting up command 02: reg_f3d
             nonlin_res_file = (
@@ -71,12 +65,12 @@ def main(subject_results):
                 NIFTY_OUTPUT_DIR + f"/{t1_name}.{file_type}.nonlinear.affine.txt"
             )
             cpp_file = NIFTY_OUTPUT_DIR + f"/{t1_name}.{file_type}.CPP.nii.gz"
-            CMD_02 = f"{NIFTYREG_DIR}/build/reg_apps/reg_f3d -ref {ref_file} -flo {MNI_TMPLT} -res {nonlin_res_file} -aff {lin_aff_file} -cpp {cpp_file} -omp 4 -sx 15 -vel --lnccw 4.0"
+            CMD_02 = f"{NIFTYREG_APP_DIR}/reg_f3d -ref {ref_file} -flo {MNI_TMPLT} -res {nonlin_res_file} -aff {lin_aff_file} -cpp {cpp_file} -omp 4 -sx 15 -vel --lncc 4.0"
             os.system(CMD_02)
 
             # setting up command 03: reg_transform
             out_file = NIFTY_OUTPUT_DIR + f"/D{idx}.nii.gz"
-            CMD_03 = f"{NIFTYREG_DIR}/build/reg-apps/reg_transform -ref {ref_file} -def {cpp_file} nonlin_aff_file {out_file}"
+            CMD_03 = f"{NIFTYREG_APP_DIR}/reg_transform -ref {ref_file} -def {cpp_file} {out_file}"
             os.system(CMD_03)
 
 
@@ -85,4 +79,3 @@ if __name__ == "__main__":
     parser.add_argument("--input_dir", type=str, nargs="*", required=True)
     options = parser.parse_args()
     main(options.input_dir)
-

@@ -163,8 +163,8 @@ nifty_%: PRJCT_DIR=/space/calico/1/users/Harsha/photo-reconstruction
 nifty_reg:
 	RESULTS_DIR=$(PRJCT_DIR)/results/4diana-hcp-recons/skip-14-r0
 	for item in `ls -d $$RESULTS_DIR/*`; do
-		subid=`basename $$item`
-		sbatch --job-name=skip-14-r0/$$subid submit.sh python scripts/diana_03.py \
+	subid=`basename $$item`
+	        sbatch --job-name=skip-14-r0/$$subid submit.sh python scripts/diana_03.py \
 			--input_dir $$item;
 	done
 
