@@ -351,6 +351,7 @@ Nphotos = len(d_i)
 Iorig = []
 Morig = []
 
+all_croppings = []
 for n in np.arange(Nphotos):
     X = np.flip(cv2.imread(d_i[n]), axis=-1)  # convert to RGB
 
@@ -361,6 +362,7 @@ for n in np.arange(Nphotos):
 
     for l in 1 + np.arange(np.max(Y)):
         mask, cropping = my.cropLabelVol(Y == l, np.round(5 / photo_res))
+        all_croppings.append(cropping)
         cropping[2] = 0
         cropping[5] = 3
         image = my.applyCropping(X, cropping)
@@ -433,11 +435,13 @@ if reverse_lr:
     aff[0, 1] = -aff[0, 1]
 im = np.zeros([*siz, Nslices + 2 * PAD_AP, 3])
 mask = np.zeros([*siz, Nslices + 2 * PAD_AP])
+all_paddings = []
 for n in np.arange(Nslices):
     idx1 = np.ceil(0.5 * (np.array(siz) - sizes[n, :])).astype("int")
     idx2 = (idx1 + sizes[n, :]).astype("int")
     im[idx1[0]:idx2[0], idx1[1]:idx2[1], n + PAD_AP, :] = I[n]
     mask[idx1[0]:idx2[0], idx1[1]:idx2[1], n + PAD_AP] = M[n]
+    all_paddings.append(idx1[0:2] - all_croppings[n][0:2])
 
 Is.append(im)
 Ms.append(mask)
@@ -1097,6 +1101,7 @@ if False: #DL_synthesis_model is not None:
 if 'M' in locals():
     try:
         np.save(output_directory + "slice_matrix_M.npy", M)
+        np.save(output_directory + "all_paddings.npy", all_paddings)
     except:
         print('FAIL: M could not be saved')
 else:
