@@ -233,21 +233,24 @@ def get_error_optimized(results_dir):
         )[0]
         D2 = utils.load_volume(D2_path, im_only=True)
 
-        x, y = np.indices(D2.shape[:2])
+        # x, y = np.indices(D2.shape[:2])
 
-        coord_list = list(zip(np.ndarray.flatten(x), np.ndarray.flatten(y)))
-        thickness = dict(recon_hdr)["delta"][-1]
-        values_list = (
-            D2[:, :, np.ceil((thickness * (z + PAD)) + 1).astype(int), :]
-            .reshape(-1, 3)
-            .tolist()
-        )
+        # coord_list = list(zip(np.ndarray.flatten(x), np.ndarray.flatten(y)))
+        # thickness = dict(recon_hdr)["delta"][-1]
+        # values_list = (
+        #     D2[:, :, np.ceil((thickness * (z + PAD)) + 1).astype(int), :]
+        #     .reshape(-1, 3)
+        #     .tolist()
+        # )
 
-        f = LinearNDInterpolator(coord_list, values_list)
+        # f = LinearNDInterpolator(coord_list, values_list)
 
-        interpolated_values = f(synthsr_coords.T[:, :2])
+        # interpolated_values = f(synthsr_coords.T[:, :2])
 
-        errors_slice = D1_at_gt - interpolated_values
+        from scipy.ndimage import map_coordinates
+        D2_at_gt = np.stack([map_coordinates(D2[..., i], synthsr_coords[:3], order=1) for i in range(3)], -1)
+
+        errors_slice = D1_at_gt - D2_at_gt
 
         ###### END: new addition ######
 
@@ -875,13 +878,13 @@ def main_diana():
 
 
 if __name__ == "__main__":
-    PRJCT_DIR = "/space/calico/1/users/Harsha/photo-reconstruction/results"
+    PRJCT_DIR = "/Users/harsha/Documents/photo-reconstruction/results"
 
-    FOLDER = "4diana-hcp-recons"
+    FOLDER = "4diana-hcp-recons-20231124"
 
     # set this to a high value if you want to run all subjects
     # there are nearly 897 subjects in the dataset
-    M = 100  # M = 100
+    M = 1  # M = 100
 
     full_results_path = os.path.join(PRJCT_DIR, FOLDER)
 
