@@ -11,7 +11,7 @@ import pandas as pd
 import seaborn as sns
 from matplotlib import rcParams
 from PIL import Image
-from scipy.interpolate import LinearNDInterpolator
+from scipy.ndimage import map_coordinates
 
 from ext.lab2im import utils
 
@@ -164,7 +164,7 @@ def get_error_optimized(results_dir):
     # # get the number of slices in it's highest spacing counterpart
     # # (for equal comparison with the reconstruction)
     if SOME_SUFFIX == "curtailed":
-        high_subject_dir = results_dir.replace(f"skip-{skip:02d}", "skip-16")
+        high_subject_dir = results_dir.replace(f"skip-{skip:02d}", "skip-14")
         num_slices = len(
             utils.list_files(
                 os.path.join(high_subject_dir, "slice_affines"), False, ".npy"
@@ -186,8 +186,11 @@ def get_error_optimized(results_dir):
             if slice_id not in keep_slice_list:
                 continue
 
+        # skipping the first slice
+        if z == 0:
+            continue
+
         curr_slice = t2_vol[..., slice_id]
-        ###### BEGIN: new addition ######
         io, jo = np.where(curr_slice > 0)
 
         # load D1
@@ -198,11 +201,11 @@ def get_error_optimized(results_dir):
 
         # get D1 at v_woz coordinates
         D1_at_gt = D1[io, jo, slice_id, :]
-        ###### END: new addition ######
 
-        curr_slice = np.pad(np.rot90(curr_slice), 25)
+        # rotate and pad
+        i = curr_slice.shape[1] + 25 - jo - 1
+        j = io + 25
 
-        i, j = np.where(curr_slice > 0)
         v = np.stack([i, j, np.ones(i.shape)])
         v2 = np.matmul(np.linalg.inv(photo_affine_matrix[:, :, z]), v)
 
@@ -218,7 +221,6 @@ def get_error_optimized(results_dir):
 
         ras_new = np.matmul(recon_aff, v4_3d)
 
-        ###### BEGIN: new addition ######
         # v4_3d coordinates of gt in recon space
         # applying vox2ras gives ras_new
         # applying inverse vox2ras of synthsr
@@ -233,55 +235,28 @@ def get_error_optimized(results_dir):
         )[0]
         D2 = utils.load_volume(D2_path, im_only=True)
 
-        # x, y = np.indices(D2.shape[:2])
-
-        # coord_list = list(zip(np.ndarray.flatten(x), np.ndarray.flatten(y)))
-        # thickness = dict(recon_hdr)["delta"][-1]
-        # values_list = (
-        #     D2[:, :, np.ceil((thickness * (z + PAD)) + 1).astype(int), :]
-        #     .reshape(-1, 3)
-        #     .tolist()
-        # )
-
-        # f = LinearNDInterpolator(coord_list, values_list)
-
-        # interpolated_values = f(synthsr_coords.T[:, :2])
-
-        from scipy.ndimage import map_coordinates
-        D2_at_gt = np.stack([map_coordinates(D2[..., i], synthsr_coords[:3], order=1) for i in range(3)], -1)
+        D2_at_gt = np.stack(
+            [
+                map_coordinates(D2[..., i], synthsr_coords[:3], order=1)
+                for i in range(3)
+            ],
+            -1,
+        )
 
         errors_slice = D1_at_gt - D2_at_gt
 
-        ###### END: new addition ######
-
-        # # Undo padding / rotation
-        ii = j - 25
-        jj = curr_slice.shape[0] - i - 1 - 25
-
-        # v_3d = np.stack([ii, jj, slice_id * np.ones(ii.shape), np.ones(ii.shape)])
-        # # v_3d = np.array([ii, jj, harshas_z + skip * z, 1])
-
-        # ras_gt = np.matmul(rigid_transform, np.matmul(t1_aff, v_3d))
-
-        # # errors_slice = np.linalg.norm(ras_new-ras_gt)
-        # errors_slice = ras_new[:-1] - ras_gt[:-1]
-
-        error_norms_slice = np.sqrt(
-            np.sum(errors_slice**2, axis=1)
-        )  # changed axis=0 to axis=1
-        # error_norms_slice_xy = np.sqrt(np.sum(errors_slice[:2, :] ** 2, axis=0))
-        # error_norms_slice_z = np.sqrt(
-        #     np.sum(errors_slice[2, :].reshape(1, -1) ** 2, axis=0)
-        # )
+        error_norms_slice = np.sqrt(np.sum(errors_slice**2, axis=1))
+        error_norms_slice_xy = np.sqrt(np.sum(errors_slice[:, [0, -1]] ** 2, axis=1))
+        error_norms_slice_z = np.abs(errors_slice[:, 2])
 
         error_norms_slices.append(error_norms_slice)
-        # error_norms_slices_xy.append(error_norms_slice_xy)
-        # error_norms_slices_z.append(error_norms_slice_z)
+        error_norms_slices_xy.append(error_norms_slice_xy)
+        error_norms_slices_z.append(error_norms_slice_z)
 
         # putting errors in a volume
-        errors_vol[ii, jj, slice_id] = error_norms_slice
-        # errors_vol_xy[ii, jj, slice_id] = error_norms_slice_xy
-        # errors_vol_z[ii, jj, slice_id] = error_norms_slice_z
+        errors_vol[io, jo, slice_id] = error_norms_slice
+        errors_vol_xy[io, jo, slice_id] = error_norms_slice_xy
+        errors_vol_z[io, jo, slice_id] = error_norms_slice_z
 
     os.makedirs(
         os.path.join(results_dir, "-".join(["error_vols", SOME_SUFFIX]).strip("-")),
@@ -298,26 +273,26 @@ def get_error_optimized(results_dir):
             "errors_xyz.mgz",
         ),
     )
-    # utils.save_volume(
-    #     errors_vol_xy,
-    #     t1_aff,
-    #     t1_hdr,
-    #     os.path.join(
-    #         results_dir,
-    #         "-".join(["error_vols", SOME_SUFFIX]).strip("-"),
-    #         "errors_xy.mgz",
-    #     ),
-    # )
-    # utils.save_volume(
-    #     errors_vol_z,
-    #     t1_aff,
-    #     t1_hdr,
-    #     os.path.join(
-    #         results_dir,
-    #         "-".join(["error_vols", SOME_SUFFIX]).strip("-"),
-    #         "errors_z.mgz",
-    #     ),
-    # )
+    utils.save_volume(
+        errors_vol_xy,
+        t1_aff,
+        t1_hdr,
+        os.path.join(
+            results_dir,
+            "-".join(["error_vols", SOME_SUFFIX]).strip("-"),
+            "errors_xy.mgz",
+        ),
+    )
+    utils.save_volume(
+        errors_vol_z,
+        t1_aff,
+        t1_hdr,
+        os.path.join(
+            results_dir,
+            "-".join(["error_vols", SOME_SUFFIX]).strip("-"),
+            "errors_z.mgz",
+        ),
+    )
 
     return (
         sub_id,
@@ -327,18 +302,18 @@ def get_error_optimized(results_dir):
             np.nanstd(np.concatenate(error_norms_slices)),
             np.nanmedian(np.concatenate(error_norms_slices)),
         ),
-        # (
-        #     error_norms_slices_xy,
-        #     np.nanmean(np.concatenate(error_norms_slices_xy)),
-        #     np.nanstd(np.concatenate(error_norms_slices_xy)),
-        #     np.nanmedian(np.concatenate(error_norms_slices_xy)),
-        # ),
-        # (
-        #     error_norms_slices_z,
-        #     np.nanmean(np.concatenate(error_norms_slices_z)),
-        #     np.nanstd(np.concatenate(error_norms_slices_z)),
-        #     np.nanmedian(np.concatenate(error_norms_slices_z)),
-        # ),
+        (
+            error_norms_slices_xy,
+            np.nanmean(np.concatenate(error_norms_slices_xy)),
+            np.nanstd(np.concatenate(error_norms_slices_xy)),
+            np.nanmedian(np.concatenate(error_norms_slices_xy)),
+        ),
+        (
+            error_norms_slices_z,
+            np.nanmean(np.concatenate(error_norms_slices_z)),
+            np.nanstd(np.concatenate(error_norms_slices_z)),
+            np.nanmedian(np.concatenate(error_norms_slices_z)),
+        ),
     )
 
 
@@ -456,8 +431,8 @@ def main_mp(results_dir, sample_size=None):
         )
 
     save_errors(results_dir, corr, 1)
-    # save_errors(results_dir, corr, 2)
-    # save_errors(results_dir, corr, 3)
+    save_errors(results_dir, corr, 2)
+    save_errors(results_dir, corr, 3)
 
 
 def get_jitter(dir_name):
@@ -657,234 +632,14 @@ def collect_images_into_pdf(results_dir):
     return
 
 
-def get_error_optimized_orig(results_dir):
-    """_summary_
-
-    Args:
-        skip (_type_): _description_
-        jitter (_type_): _description_
-        sub_id (_type_, optional): _description_. Defaults to None.
-
-    Returns:
-        _type_: _description_
-    """
-    PAD = 3  # for reconstruction
-
-    skip = get_skip(results_dir)
-    sub_id = os.path.basename(results_dir).split("_")[-1]
-
-    rigid_transform = np.load(utils.list_files(results_dir, True, "rigid.npy")[0])
-
-    photo_affines = utils.list_files(
-        os.path.join(results_dir, "slice_affines"), True, "npy"
-    )
-    photo_affine_matrix = np.stack([np.load(item) for item in photo_affines], axis=2)
-
-    recon_matrix = np.load(
-        os.path.join(results_dir, f"ref_mask_skip_{skip:02d}", "slice_matrix_M.npy")
-    )
-    recon_matrix = recon_matrix[
-        :, :, PAD:-PAD
-    ]  # removing matrices corresponding to padding
-    recon_matrix = recon_matrix[
-        :, [0, 1, 3], :
-    ]  # excluding rotation/translation in z-axis
-    recon_matrix = recon_matrix[[0, 1, 3], :, :]
-
-    if SOME_SUFFIX == "identity":
-        num_repeats = recon_matrix.shape[-1]
-        recon_matrix = np.concatenate([np.eye(3)[..., None]] * num_repeats, axis=-1)
-
-    all_paddings = np.load(
-        os.path.join(results_dir, f"ref_mask_skip_{skip:02d}", "all_paddings.npy")
-    )
-
-    assert (
-        photo_affine_matrix.shape[-1] == recon_matrix.shape[-1]
-    ), "Slice count mismatch"
-
-    t1_path = utils.list_files(results_dir, True, "T1.nii.gz")[0]
-    t2_path = utils.list_files(results_dir, True, "T2.nii.gz")[0]
-
-    _, t1_aff, t1_hdr = utils.load_volume(t1_path, im_only=False)
-    t2_vol, _, _ = utils.load_volume(t2_path, im_only=False)
-
-    recon = os.path.join(results_dir, f"ref_mask_skip_{skip:02d}", "photo_recon.mgz")
-    _, recon_aff, _ = utils.load_volume(recon, im_only=False)
-
-    error_norms_slices = []
-    error_norms_slices_xy = []
-    error_norms_slices_z = []
-    slice_ids_of_interest = slice_ids_method2(skip, t2_vol)
-
-    # # get the number of slices in it's highest spacing counterpart
-    # # (for equal comparison with the reconstruction)
-    if SOME_SUFFIX == "curtailed":
-        high_subject_dir = results_dir.replace(f"skip-{skip:02d}", "skip-16")
-        num_slices = len(
-            utils.list_files(
-                os.path.join(high_subject_dir, "slice_affines"), False, ".npy"
-            )
-        )
-        keep_slice_list = get_middle_elements(slice_ids_of_interest, num_slices)
-
-    if SOME_SUFFIX == "divisible":
-        divisors = [2, 3, 4, 6, 8]
-        keep_slice_list = filter_divisible_by_all(slice_ids_of_interest, divisors)
-
-    # creating empty arrays for error norms (volumes)
-    errors_vol = np.zeros_like(t2_vol)
-    errors_vol_xy = np.zeros_like(t2_vol)
-    errors_vol_z = np.zeros_like(t2_vol)
-
-    for z, slice_id in enumerate(slice_ids_of_interest):
-        if SOME_SUFFIX == "curtailed" or SOME_SUFFIX == "divisible":
-            if slice_id not in keep_slice_list:
-                continue
-
-        curr_slice = t2_vol[..., slice_id]
-        curr_slice = np.pad(np.rot90(curr_slice), 25)
-        # curr_slice[i-1:i+1, j-1:j+1] = 2 * np.max(curr_slice)
-
-        i, j = np.where(curr_slice > 0)
-        v = np.stack([i, j, np.ones(i.shape)])
-        v2 = np.matmul(np.linalg.inv(photo_affine_matrix[:, :, z]), v)
-
-        zp = len(all_paddings) - z - 1
-
-        P = np.eye(3)
-        P[:-1, -1] = all_paddings[zp]
-
-        v3 = np.matmul(P, v2)
-        v4 = np.matmul(np.linalg.inv(recon_matrix[:, :, zp]), v3)
-
-        v4_3d = np.stack([v4[0, :], v4[1, :], (zp + PAD) * v4[-1, :], v4[-1, :]])
-
-        ras_new = np.matmul(recon_aff, v4_3d)
-
-        # Undo padding / rotation
-        ii = j - 25
-        jj = curr_slice.shape[0] - i - 1 - 25
-
-        v_3d = np.stack([ii, jj, slice_id * np.ones(ii.shape), np.ones(ii.shape)])
-        # v_3d = np.array([ii, jj, harshas_z + skip * z, 1])
-
-        ras_gt = np.matmul(rigid_transform, np.matmul(t1_aff, v_3d))
-
-        # errors_slice = np.linalg.norm(ras_new-ras_gt)
-        errors_slice = ras_new[:-1] - ras_gt[:-1]
-
-        error_norms_slice = np.sqrt(np.sum(errors_slice**2, axis=0))
-        error_norms_slice_xy = np.sqrt(np.sum(errors_slice[:2, :] ** 2, axis=0))
-        error_norms_slice_z = np.sqrt(
-            np.sum(errors_slice[2, :].reshape(1, -1) ** 2, axis=0)
-        )
-
-        error_norms_slices.append(error_norms_slice)
-        error_norms_slices_xy.append(error_norms_slice_xy)
-        error_norms_slices_z.append(error_norms_slice_z)
-
-        # putting errors in a volume
-        errors_vol[ii, jj, slice_id] = error_norms_slice
-        errors_vol_xy[ii, jj, slice_id] = error_norms_slice_xy
-        errors_vol_z[ii, jj, slice_id] = error_norms_slice_z
-
-    os.makedirs(
-        os.path.join(results_dir, "-".join(["error_vols", SOME_SUFFIX]).strip("-")),
-        exist_ok=True,
-    )
-
-    utils.save_volume(
-        errors_vol,
-        t1_aff,
-        t1_hdr,
-        os.path.join(
-            results_dir,
-            "-".join(["error_vols", SOME_SUFFIX]).strip("-"),
-            "errors_xyz.mgz",
-        ),
-    )
-    utils.save_volume(
-        errors_vol_xy,
-        t1_aff,
-        t1_hdr,
-        os.path.join(
-            results_dir,
-            "-".join(["error_vols", SOME_SUFFIX]).strip("-"),
-            "errors_xy.mgz",
-        ),
-    )
-    utils.save_volume(
-        errors_vol_z,
-        t1_aff,
-        t1_hdr,
-        os.path.join(
-            results_dir,
-            "-".join(["error_vols", SOME_SUFFIX]).strip("-"),
-            "errors_z.mgz",
-        ),
-    )
-
-    return (
-        sub_id,
-        (
-            error_norms_slices,
-            np.nanmean(np.concatenate(error_norms_slices)),
-            np.nanstd(np.concatenate(error_norms_slices)),
-            np.nanmedian(np.concatenate(error_norms_slices)),
-        ),
-        (
-            error_norms_slices_xy,
-            np.nanmean(np.concatenate(error_norms_slices_xy)),
-            np.nanstd(np.concatenate(error_norms_slices_xy)),
-            np.nanmedian(np.concatenate(error_norms_slices_xy)),
-        ),
-        (
-            error_norms_slices_z,
-            np.nanmean(np.concatenate(error_norms_slices_z)),
-            np.nanstd(np.concatenate(error_norms_slices_z)),
-            np.nanmedian(np.concatenate(error_norms_slices_z)),
-        ),
-    )
-
-
-def calculate_error(subject):
-    t1_file = glob.glob(os.path.join(subject, "*T1*"))[0]
-    t2_file = glob.glob(os.path.join(subject, "*T2*"))[0]
-
-    d1_file = glob.glob(os.path.join(subject, "niftreg_outputs", "D1.*"))[0]
-    d2_file = glob.glob(os.path.join(subject, "niftreg_outputs", "D2.*"))[0]
-
-    error_x = 0
-    error_y = 0
-    error_z = 0
-
-    error = np.sqrt(error_x**2 + error_y**2 + error_z**2)
-
-    return error
-
-
-def main_diana():
-    # results_dir = "/space/calico/1/users/Harsha/photo-reconstruction/results/4diana-hcp-recons/skip-14-r0"
-    results_dir = "/Users/harsha/Documents/photo-reconstruction/results/4diana-hcp-recons/skip-14-r0"
-    subjects = sorted(glob.glob(os.path.join(results_dir, "subject_*")))
-
-    for subject in subjects:
-        subject_id = os.path.basename(subject)
-
-        error = calculate_error(subject)
-
-        print(f"{subject_id} - {error}")
-
-
 if __name__ == "__main__":
-    PRJCT_DIR = "/Users/harsha/Documents/photo-reconstruction/results"
+    PRJCT_DIR = "/space/calico/1/users/Harsha/photo-reconstruction/results"
 
-    FOLDER = "4diana-hcp-recons-20231124"
+    FOLDER = "4diana-hcp-recons"
 
     # set this to a high value if you want to run all subjects
     # there are nearly 897 subjects in the dataset
-    M = 1  # M = 100
+    M = 100
 
     full_results_path = os.path.join(PRJCT_DIR, FOLDER)
 
