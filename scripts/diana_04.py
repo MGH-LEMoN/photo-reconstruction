@@ -159,6 +159,8 @@ def get_error_optimized(results_dir):
     error_norms_slices = []
     error_norms_slices_xy = []
     error_norms_slices_z = []
+    error_norms_slices_y = []
+    error_norms_slices_x = []
     slice_ids_of_interest = slice_ids_method2(skip, t2_vol)
 
     # # get the number of slices in it's highest spacing counterpart
@@ -180,6 +182,8 @@ def get_error_optimized(results_dir):
     errors_vol = np.zeros_like(t2_vol)
     errors_vol_xy = np.zeros_like(t2_vol)
     errors_vol_z = np.zeros_like(t2_vol)
+    errors_vol_y = np.zeros_like(t2_vol)
+    errors_vol_x = np.zeros_like(t2_vol)
 
     for z, slice_id in enumerate(slice_ids_of_interest):
         if SOME_SUFFIX == "curtailed" or SOME_SUFFIX == "divisible":
@@ -246,17 +250,23 @@ def get_error_optimized(results_dir):
         errors_slice = D1_at_gt - D2_at_gt
 
         error_norms_slice = np.sqrt(np.sum(errors_slice**2, axis=1))
-        error_norms_slice_xy = np.sqrt(np.sum(errors_slice[:, [0, -1]] ** 2, axis=1))
-        error_norms_slice_z = np.abs(errors_slice[:, 2])
+        error_norms_slice_xy = np.sqrt(np.sum(errors_slice[:, [0, 2]] ** 2, axis=1))
+        error_norms_slice_z = np.abs(errors_slice[:, 1])
+        error_norms_slice_y = np.abs(errors_slice[:, 2])
+        error_norms_slice_x = np.abs(errors_slice[:, 0])
 
         error_norms_slices.append(error_norms_slice)
         error_norms_slices_xy.append(error_norms_slice_xy)
         error_norms_slices_z.append(error_norms_slice_z)
+        error_norms_slices_y.append(error_norms_slice_y)
+        error_norms_slices_x.append(error_norms_slice_x)
 
         # putting errors in a volume
         errors_vol[io, jo, slice_id] = error_norms_slice
         errors_vol_xy[io, jo, slice_id] = error_norms_slice_xy
         errors_vol_z[io, jo, slice_id] = error_norms_slice_z
+        errors_vol_y[io, jo, slice_id] = error_norms_slice_y
+        errors_vol_x[io, jo, slice_id] = error_norms_slice_x
 
     os.makedirs(
         os.path.join(results_dir, "-".join(["error_vols", SOME_SUFFIX]).strip("-")),
@@ -293,6 +303,26 @@ def get_error_optimized(results_dir):
             "errors_z.mgz",
         ),
     )
+    utils.save_volume(
+        errors_vol_y,
+        t1_aff,
+        t1_hdr,
+        os.path.join(
+            results_dir,
+            "-".join(["error_vols", SOME_SUFFIX]).strip("-"),
+            "errors_y.mgz",
+        ),
+    )
+    utils.save_volume(
+        errors_vol_x,
+        t1_aff,
+        t1_hdr,
+        os.path.join(
+            results_dir,
+            "-".join(["error_vols", SOME_SUFFIX]).strip("-"),
+            "errors_x.mgz",
+        ),
+    )
 
     return (
         sub_id,
@@ -314,6 +344,18 @@ def get_error_optimized(results_dir):
             np.nanstd(np.concatenate(error_norms_slices_z)),
             np.nanmedian(np.concatenate(error_norms_slices_z)),
         ),
+        (
+            error_norms_slices_y,
+            np.nanmean(np.concatenate(error_norms_slices_y)),
+            np.nanstd(np.concatenate(error_norms_slices_y)),
+            np.nanmedian(np.concatenate(error_norms_slices_y)),
+        ),
+        (
+            error_norms_slices_x,
+            np.nanmean(np.concatenate(error_norms_slices_x)),
+            np.nanstd(np.concatenate(error_norms_slices_x)),
+            np.nanmedian(np.concatenate(error_norms_slices_x)),
+        ),
     )
 
 
@@ -325,7 +367,7 @@ def save_errors(results_dir, corr, idx):
         jitter (_type_): _description_
         corr (_type_): _description_
     """
-    idx_flag = [None, "all", "xy", "z"]
+    idx_flag = [None, "all", "xy", "z", "y", "x"]
     out_strings = ["errors", "means", "stds", "medians"]
 
     jitter_val = get_jitter(results_dir)
@@ -433,6 +475,8 @@ def main_mp(results_dir, sample_size=None):
     save_errors(results_dir, corr, 1)
     save_errors(results_dir, corr, 2)
     save_errors(results_dir, corr, 3)
+    save_errors(results_dir, corr, 4)
+    save_errors(results_dir, corr, 5)
 
 
 def get_jitter(dir_name):
